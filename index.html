@@ -4,45 +4,247 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Exam Timer</title>
-    <!-- 1. Include Tailwind CSS -->
-    <script src="https://cdn.tailwindcss.com"></script>
     
-    <!-- 2. Import Google Font -->
+    <!-- 1. Import Google Font -->
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Lexend:wght@200;400;600;700;800&display=swap" rel="stylesheet">
     
-    <!-- 3. Apply custom font to body -->
+    <!-- 2. INLINE CSS STYLES (Replaces Tailwind) -->
     <style>
+        /* --- Base & Font --- */
         body { 
             font-family: 'Lexend', sans-serif; 
+            min-height: 100vh;
+            background-color: #000;
+            color: #fff;
+            position: relative;
+            padding: 1rem; /* p-4 */
+            margin: 0;
         }
+
+        /* --- Layout Containers --- */
+        main {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+
+        .content-wrapper {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            width: 100%;
+            max-width: 56rem; /* max-w-4xl */
+            margin: 0 auto;
+            padding-top: 2rem; /* pt-8 */
+        }
+
+        /* --- 1. Timeline --- */
+        .timeline-container {
+            width: 100%;
+            display: flex;
+            justify-content: center;
+            align-items: flex-start;
+            margin-bottom: 0.5rem; /* mb-8 */
+        }
+        
+        #timeline-labels {
+            width: 100%;
+            position: relative;
+            height: 80vh;
+        }
+
+        .timeline-marker {
+            position: absolute;
+            width: 100%;
+            display: flex;
+            align-items: center;
+            justify-content: flex-end;
+            transform: translateY(-50%);
+        }
+
+        .timeline-label {
+            margin-right: 1rem; /* mr-4 */
+            font-size: 1.875rem; /* text-3xl */
+            font-weight: 700; /* font-bold */
+            white-space: nowrap;
+            display: block;
+            color: #fff; /* text-white */
+            transition: color 0.3s;
+        }
+        .timeline-label.is-passed {
+            color: #4ade80; /* text-green-400 */
+        }
+
+        .timeline-dot {
+            width: 1.25rem; /* w-5 */
+            height: 1.25rem; /* h-5 */
+            border-radius: 9999px; /* rounded-full */
+            background-color: #fff; /* bg-white */
+            transition: background-color 0.3s;
+        }
+        .timeline-dot.is-passed {
+            background-color: #22c55e; /* bg-green-500 */
+        }
+
+        /* --- 2. Main Content --- */
+        .main-content {
+            flex-grow: 1;
+            display: flex;
+            flex-direction: column;
+            align-items: flex-start; /* items-start */
+            width: 100%;
+        }
+
+        #digital-clock {
+            font-size: 8rem; /* text-7xl */
+            line-height: 1; /* leading-none */
+            font-weight: 800; /* font-extrabold */
+            color: #fff; /* text-white */
+        }
+
+        #exam-status-display {
+            width: 100%;
+            text-align: left;
+        }
+        
+        /* Dynamic instruction text classes */
+        .instruction-text {
+            font-size: 2rem; /* text-2xl */
+        }
+        .instruction-header {
+            font-weight: 700; /* font-bold */
+            font-size: 1.7rem; /* text-2xl */
+            margin-bottom: 0.5rem; /* mb-4 */
+        }
+        .instruction-italic {
+            font-style: italic;
+            font-size: 1.7rem; /* text-2xl */
+        }
+        .color-yellow {
+            color: #facc15; /* text-yellow-400 */
+        }
+        .color-red {
+            color: #f87171; /* text-red-400 */
+        }
+        .color-white {
+            color: #fff; /* text-white */
+        }
+
+
+        /* --- 3. Button Bar --- */
+        .button-bar {
+            position: fixed;
+            bottom: 0;
+            left: 0;
+            right: 0;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            padding: 0.5rem 0; /* py-6 */
+            z-index: 50;
+        }
+        
+        .button-bar button {
+            font-family: 'Lexend', sans-serif; 
+            font-size: 0.7rem; /* text-base */
+            font-weight: 300; /* font-semibold */
+            color: #fff;
+            background: none;
+            border: none;
+            cursor: pointer;
+            opacity: 0.15; /* opacity-15 */
+            transition: opacity 0.2s;
+            margin: 0 1.5rem; /* space-x-12 (approx) */
+        }
+        
+        .button-bar button:disabled,
+        .button-bar button.is-disabled {
+            opacity: 0.10; /* opacity-10 */
+            cursor: not-allowed;
+        }
+
+        /* --- Responsive Media Queries --- */
+        
+        /* sm: (640px) */
+        @media (min-width: 640px) {
+            body {
+                padding: 2rem; /* sm:p-8 */
+            }
+            .timeline-label {
+                font-size: 2.25rem; /* sm:text-4xl */
+            }
+            #digital-clock {
+                font-size: 5.625rem; /* sm:text-9xl */
+            }
+            .instruction-text {
+                font-size: 1.875rem; /* sm:text-3xl */
+            }
+            .button-bar button {
+                font-size: 1.125rem; /* sm:text-lg */
+            }
+        }
+        
+        /* md: (768px) */
+        @media (min-width: 768px) {
+            .content-wrapper {
+                flex-direction: row; /* md:flex-row */
+                align-items: flex-start; /* md:items-start */
+            }
+            .timeline-container {
+                width: 12rem; /* md:w-48 */
+                justify-content: flex-end; /* md:justify-end */
+                margin-right: 4rem; /* md:mr-16 */
+                margin-bottom: 0; /* md:mb-0 */
+            }
+        }
+
+        /* lg: (1024px) */
+        @media (min-width: 1024px) {
+            .timeline-label {
+                font-size: 3rem; /* lg:text-5xl */
+            }
+            #digital-clock {
+                font-size: 8rem; /* lg:text-[12rem] - (12rem is huge, toning down to 8rem) */
+            }
+            .instruction-text {
+                font-size: 2.25rem; /* lg:text-4xl */
+            }
+            .button-bar button {
+                font-size: 1.25rem; /* lg:text-xl */
+            }
+        }
+
     </style>
 </head>
-<body class="min-h-screen bg-black text-white relative font-sans p-4 sm:p-8">
-
-    <!-- 1. TOP LEFT CLOCK (Dynamic) -->
-    <div id="digital-clock" class="absolute top-8 left-8 text-4xl sm:text-6xl lg:text-8xl font-extrabold text-white z-10">
-        <!-- Current time will be injected here by JS -->
-    </div>
+<body class="bg-black text-white"> <!-- Removed Tailwind classes -->
 
     <!-- Main Content Area -->
-    <main class="flex flex-col items-center pt-40 pb-20">
-        <div class="flex flex-col md:flex-row items-center md:items-start justify-center w-full max-w-4xl mx-auto pt-8">
+    <main>
+        <!-- Removed Tailwind classes -->
+        <div class="content-wrapper">
 
             <!-- 1. Vertical Timeline (Left Side) -->
-            <div class="w-full md:w-32 h-[600px] flex justify-center md:justify-end items-start md:mr-16 mb-8 md:mb-0">
-                <!-- Timeline container: Relative for absolute positioning of labels -->
-                <div class="w-48 h-full relative">
-                    <!-- Timeline Labels and Ticks will be injected here by JS -->
-                    <div id="timeline-labels" class="w-full h-full relative"></div>
+            <div class="timeline-container">
+                <div class="w-full relative">
+                    <div id="timeline-labels">
+                        <!-- Timeline Labels and Ticks will be injected here by JS -->
+                    </div>
                 </div>
             </div>
 
             <!-- 2. Main Timer Content (Center) -->
-            <div class="flex-grow flex flex-col items-center mt-1">
+            <div class="main-content">
+                
+                <!-- 1. TOP LEFT CLOCK (Dynamic) -->
+                <div id="digital-clock">
+                    <!-- Current time will be injected here by JS -->
+                </div>
+                
                 <!-- Status/Warning Message (Dynamic) -->
-                <div id="exam-status-display" class="w-full max-w-xl text-left p-4 rounded-lg">
+                <div id="exam-status-display">
                     <!-- Exam status messages will be injected here by JS -->
                 </div>
             </div>
@@ -51,27 +253,19 @@
     </main>
 
     <!-- 3. FIXED BOTTOM BUTTONS -->
-    <div class="fixed inset-x-0 bottom-0 flex justify-center items-center py-6 bg-black/90 border-t border-gray-800 z-50 space-x-12">
+    <div class="button-bar">
         
         <!-- Start/Pause Button -->
-        <button id="toggle-btn" class="text-lg sm:text-xl font-semibold text-white hover:opacity-15 opacity-15">
-            Start
-        </button>
+        <button id="toggle-btn">Start</button>
         
         <!-- Reset Button -->
-        <button id="reset-btn" class="text-lg sm:text-xl font-semibold transition-opacity duration-200 text-white hover:opacity-15" style="opacity: 0.15;">
-            Reset
-        </button>
+        <button id="reset-btn">Reset</button>
 
         <!-- Extra Time Toggle -->
-        <button id="extra-time-btn" class="text-lg sm:text-xl font-semibold transition-opacity duration-200 text-white hover:opacity-15" style="opacity: 0.15;">
-            Extra Time OFF
-        </button>
+        <button id="extra-time-btn">Extra Time OFF</button>
         
         <!-- Auto-Start Toggle -->
-        <button id="auto-start-btn" class="text-lg sm:text-xl font-semibold transition-opacity duration-200 text-white hover:opacity-15" style="opacity: 0.15;">
-            Auto-Start OFF
-        </button>
+        <button id="auto-start-btn">Auto-Start OFF</button>
     </div>
 
 
@@ -159,86 +353,90 @@
         // Renders the Exam Status Display HTML
         function getExamStatusDisplayHTML(state) {
             const { isPaused, isFinished, isWarning, isRestricted, isExtraTimeEnabled, isAutoStartEnabled, timeRemainingSeconds, autoStartTime } = state;
-            const instructionFontSize = "text-xl sm:text-2xl md:text-3xl";
+            
+            // CSS classes are now defined in the <style> tag
+            const baseClass = "instruction-text";
+            const headerClass = `${baseClass} instruction-header color-yellow`;
+            const italicClass = `${baseClass} instruction-italic color-white`;
 
-            // STAGE 1: Extra Time Hard Stop
+            // --- STAGE 1: Extra Time Hard Stop ---
             if (isExtraTimeEnabled && timeRemainingSeconds <= EXTRA_TIME_LIMIT_SECONDS) {
                 return `
                     <div>
-                        <h1 class="${instructionFontSize} font-bold mb-4 text-yellow-400">The exam has ended.</h1>
-                        <h2 class="${instructionFontSize} italic mb-2 text-white">You must stop writing.</h2>
-                        <h2 class="${instructionFontSize} italic mb-2 text-white">Please remain silent as there may be other candidates still writing.</h2>
-                        <h2 class="${instructionFontSize} italic mb-2 text-white">Listen carefully to all exit instructions.</h2>
-                        <h2 class="${instructionFontSize} italic mb-2 text-white">You will be told when you can leave.</h2>
+                        <h1 class="${headerClass}">The exam has ended.</h1>
+                        <h2 class="${italicClass}">You must stop writing.</h2>
+                        <h2 class="${italicClass}">Please remain silent as there may be other candidates still writing.</h2>
+                        <h2 class="${italicClass}">Listen carefully to all exit instructions.</h2>
+                        <h2 class="${italicClass}">You will be told when you can leave.</h2>
                     </div>`;
             }
-            // STAGE 2: Extra Time Active
+            // --- STAGE 2: Extra Time Active ---
             if (isFinished && isExtraTimeEnabled && timeRemainingSeconds < 0) {
                 return `
                     <div>
-                        <h1 class="${instructionFontSize} font-bold mb-4 text-yellow-400">Extra Time is in progress.</h1>
-                        <h2 class="${instructionFontSize} italic mb-2 text-red-400">(Extra Time: ${formatTimeMMSS(timeRemainingSeconds)})</h2>
+                        <h1 class="${headerClass}">Extra Time is in progress.</h1>
+                        <h2 class="${baseClass} instruction-italic color-red">(Extra Time: ${formatTimeMMSS(timeRemainingSeconds)})</h2>
                     </div>`;
             }
-            // STAGE 3: Finished (Standard)
+            // --- STAGE 3: Finished (Standard) ---
             if (isFinished) {
                 return `
                     <div>
-                        <h1 class="${instructionFontSize} font-bold mb-4 text-yellow-400">The exam has ended.</h1>
-                        <h2 class="${instructionFontSize} italic mb-2 text-white">You must stop writing.</h2>
-                        <h2 class="${instructionFontSize} italic mb-2 text-white">Please remain silent as there may be other candidates still writing.</h2>
-                        <h2 class="${instructionFontSize} italic mb-2 text-white">Listen carefully to all exit instructions.</h2>
-                        <h2 class="${instructionFontSize} italic mb-2 text-white">You will be told when you can leave.</h2>
+                        <h1 class="${headerClass}">The exam has ended.</h1>
+                        <h2 class="${italicClass}">You must stop writing.</h2>
+                        <h2 class="${italicClass}">Please remain silent as there may be other candidates still writing.</h2>
+                        <h2 class="${italicClass}">Listen carefully to all exit instructions.</h2>
+                        <h2 class="${italicClass}">You will be told when you can leave.</h2>
                     </div>`;
             }
-            // STAGE 4: Auto-Start Scheduled
+            // --- STAGE 4: Auto-Start Scheduled ---
             if (isAutoStartEnabled && isPaused && autoStartTime) {
                 return `
                     <div>
-                        <h1 class="${instructionFontSize} font-bold mb-4 text-yellow-400">You must hand in ALL exam answer booklets</h1>
-                        <h2 class="${instructionFontSize} italic mb-2 text-white">If you have not written in an answer booklet, please tick the box on the front before you hand it in.</h2>
-                        <h2 class="${instructionFontSize} italic mb-2 text-white">You may keep any resource booklets, or hand them in to be recycled.</h2>
+                        <h1 class="${headerClass}">You must hand in ALL exam answer booklets</h1>
+                        <h2 class="${italicClass}">If you have not written in an answer booklet, please tick the box on the front before you hand it in.</h2>
+                        <h2 class="${italicClass}">You may keep any resource booklets, or hand them in to be recycled.</h2>
                     </div>`;       
             }
-            // STAGE 5: Timer Paused (Mid-Exam)
+            // --- STAGE 5: Timer Paused (Mid-Exam) ---
             if (isPaused && timeRemainingSeconds < TOTAL_DURATION_SECONDS) {
                 return `
                     <div>
-                        <h1 class="${instructionFontSize} font-bold mb-4 text-yellow-400">The exam is paused. Please stop writing</h1>
-                        <h2 class="${instructionFontSize} italic mb-2 text-white">You will be told when you can begin writing again.</h2>
+                        <h1 class="${headerClass}">The exam is paused. Please stop writing</h1>
+                        <h2 class="${italicClass}">You will be told when you can begin writing again.</h2>
                     </div>`;
             }
-            // STAGE 6: Ready to Start (Initial State)
+            // --- STAGE 6: Ready to Start (Initial State) ---
             if (isPaused) {
                 return `
                     <div>
-                        <h1 class="${instructionFontSize} font-bold mb-4 text-yellow-400">You must hand in ALL exam answer booklets</h1>
-                        <h2 class="${instructionFontSize} italic mb-2 text-white">If you have not written in an answer booklet, please tick the box on the front before you hand it in.</h2>
-                        <h2 class="${instructionFontSize} italic mb-2 text-white">You may keep any resource booklets, or hand them in to be recycled.</h2>
+                        <h1 class="${headerClass}">You must hand in ALL exam answer booklets</h1>
+                        <h2 class="${italicClass}">If you have not written in an answer booklet, please tick the box on the front before you hand it in.</h2>
+                        <h2 class="${italicClass}">You may keep any resource booklets, or hand them in to be recycled.</h2>
                     </div>`;
             }
-            // STAGE 7: Warning Period
+            // --- STAGE 7: Warning Period ---
             if (isWarning) {
                 return `
                     <div>
-                        <h1 class="${instructionFontSize} font-bold mb-4 text-yellow-400">You may not leave in the final 15 minutes of the exam.</h1>
-                        <h2 class="${instructionFontSize} italic mb-2 text-white">If you are finished, stay seated and wait for the exam to end.</h2>
+                        <h1 class="${headerClass}">You may not leave in the final 15 minutes of the exam.</h1>
+                        <h2 class="${italicClass}">If you are finished, stay seated and wait for the exam to end.</h2>
                     </div>`;
             }
-            // STAGE 8: Restriction Period
+            // --- STAGE 8: Restriction Period ---
             if (isRestricted) {
                 return `
                     <div>
-                        <h1 class="${instructionFontSize} font-bold mb-4 text-yellow-400">You may not leave in the first 45 minutes of the exam.</h1>
-                        <h2 class="${instructionFontSize} italic mb-2 text-white">Please stay in your seat. If you need a supervisor, raise your hand.</h2>
+                        <h1 class="${headerClass}">You may not leave in the first 45 minutes of the exam.</h1>
+                        <h2 class="${italicClass}">Please stay in your seat. If you need a supervisor, raise your hand.</h2>
                     </div>`;
             }
-            // STAGE 9: Exam In Progress (Default)
+            // --- STAGE 9: Exam In Progress (Default) ---
             return `
                 <div>
-                    <h1 class="${instructionFontSize} font-bold mb-4 text-yellow-400">Please remain seated at your desk at all times.</h1>
-                    <h2 class="${instructionFontSize} italic mb-2 text-white">If you need to visit the bathroom, raise your hand.</h2>
-                    <h2 class="${instructionFontSize} italic mb-2 text-white">If you are finished and would like to leave, raise your hand.</h2>
+                    <h1 class="${headerClass}">Please remain seated at your desk at all times.</h1>
+                    <h2 class="${italicClass}">If you need to visit the bathroom, raise your hand.</h2>
+                    <h2 class="${italicClass}">If you are finished and would like to leave, raise your hand.</h2>
                 </div>`;
         }
 
@@ -262,20 +460,19 @@
                     isPassed = !isPaused || (timeElapsedSeconds > 0) || isFinished;
                 }
 
-                const labelClasses = `text-xl sm:text-2xl md:text-3xl font-medium whitespace-nowrap block ${isPassed ? 'text-green-400' : 'text-white'}`;
-                const dotColor = isPassed ? 'bg-green-500' : 'bg-white';
+                // UPDATED: Use new CSS classes
+                const passedClass = isPassed ? 'is-passed' : '';
                 
                 labelsHTML += `
-                    <div class="absolute w-full flex items-center justify-end" style="top: ${percent}%; transform: translateY(-50%);">
-                        <span class="mr-4 ${labelClasses}">${time}</span>
-                        <div class="w-4 h-4 rounded-full ${dotColor}"></div>
+                    <div class="timeline-marker" style="top: ${percent}%;">
+                        <span class="timeline-label ${passedClass}">${time}</span>
+                        <div class="timeline-dot ${passedClass}"></div>
                     </div>`;
             }
             return labelsHTML;
         }
 
         // --- MAIN UI UPDATE FUNCTION ---
-        // This function is called every time state changes to re-render the UI
         function updateUI() {
             if (!timelineLabelsEl || !examStatusDisplayEl || !toggleBtn || !resetBtn || !extraTimeBtn || !autoStartBtn) {
                 console.error("DOM elements not found. UI cannot update.");
@@ -308,45 +505,44 @@
             // 5. Update Buttons
             const isStartButtonDisabled = isAutoStartEnabled;
             const isAtHardStop = (timeRemainingSeconds <= EXTRA_TIME_LIMIT_SECONDS && isExtraTimeEnabled);
+            const isAutoStartDisabled = !isPaused || isFinished;
 
             // Toggle Button
             toggleBtn.textContent = isPaused ? 'Start' : 'Pause';
             toggleBtn.disabled = isStartButtonDisabled || isAtHardStop;
-            toggleBtn.className = `text-lg sm:text-xl font-semibold text-white hover:opacity-15 ${isStartButtonDisabled ? 'opacity-10' : 'opacity-15'}`;
+            // UPDATED: Use classList.toggle with 'is-disabled'
+            toggleBtn.classList.toggle('is-disabled', toggleBtn.disabled);
 
             // Extra Time Button
             extraTimeBtn.textContent = `Extra Time ${isExtraTimeEnabled ? 'ON' : 'OFF'}`;
             extraTimeBtn.disabled = isAtHardStop;
+            extraTimeBtn.classList.toggle('is-disabled', extraTimeBtn.disabled);
             
             // Auto-Start Button
             autoStartBtn.textContent = `Auto-Start ${isAutoStartEnabled ? 'ON' : 'OFF'}`;
-            autoStartBtn.disabled = !isPaused || isFinished;
+            autoStartBtn.disabled = isAutoStartDisabled;
+            autoStartBtn.classList.toggle('is-disabled', autoStartBtn.disabled);
         }
 
         // --- TIMER LOGIC ---
-
         function tick() {
             timeRemainingSeconds = timeRemainingSeconds - 1;
-            const newTime = timeRemainingSeconds;
             
             let shouldStopTimer = false;
 
-            // Check 1: Extra Time OFF - Hard Stop at Zero
-            if (!isExtraTimeEnabled && newTime < 0) {
+            if (!isExtraTimeEnabled && timeRemainingSeconds < 0) {
                 shouldStopTimer = true;
                 isFinished = true;
-                timeRemainingSeconds = 0; // Fix time at 0
+                timeRemainingSeconds = 0;
             }
 
-            // Check 2: Extra Time ON - Hard Stop at Limit
-            if (isExtraTimeEnabled && newTime <= EXTRA_TIME_LIMIT_SECONDS) {
+            if (isExtraTimeEnabled && timeRemainingSeconds <= EXTRA_TIME_LIMIT_SECONDS) {
                 shouldStopTimer = true;
                 isFinished = true;
-                timeRemainingSeconds = EXTRA_TIME_LIMIT_SECONDS; // Fix time at limit
+                timeRemainingSeconds = EXTRA_TIME_LIMIT_SECONDS;
             }
             
-            // Check 3: Main Finish Notification (Always happens at 0)
-            if (newTime <= 0 && (newTime + 1) > 0) {
+            if (timeRemainingSeconds <= 0 && (timeRemainingSeconds + 1) > 0) {
                 isFinished = true;
             }
             
@@ -356,18 +552,16 @@
                 isPaused = true;
             }
             
-            updateUI(); // Re-render the UI on every tick
+            updateUI();
         }
 
         function toggleTimer() {
             if (isPaused) {
-                // Start
                 if (!intervalRef) {
                     intervalRef = setInterval(tick, 1000);
                 }
                 isPaused = false;
             } else {
-                // Pause
                 if (intervalRef) {
                     clearInterval(intervalRef);
                     intervalRef = null;
@@ -391,14 +585,12 @@
             timeRemainingSeconds = TOTAL_DURATION_SECONDS;
             isPaused = true;
             isFinished = false;
-            // Note: isExtraTimeEnabled is NOT reset by design
             
             updateUI();
         }
 
         // --- AUTO-START LOGIC ---
         function manageAutoStart() {
-            // Clear interval and schedule if feature is off, timer is running, or exam is finished
             if (!isAutoStartEnabled || !isPaused || isFinished) {
                 if (checkIntervalRef) {
                     clearInterval(checkIntervalRef);
@@ -407,17 +599,15 @@
                 if (!isAutoStartEnabled) {
                     autoStartTime = null;
                 }
-                updateUI(); // Update button text/state
+                updateUI();
                 return;
             }
 
-            // If enabled and paused, calculate the target time only once
             if (!autoStartTime) {
                 autoStartTime = calculateNextHalfHourTime();
-                updateUI(); // Update to show scheduled message
+                updateUI();
             }
 
-            // Start a fast interval to check against real-time
             if (!checkIntervalRef) {
                 checkIntervalRef = setInterval(() => {
                     const now = new Date();
@@ -425,15 +615,15 @@
                     if (now.getTime() >= autoStartTime.getTime()) {
                         clearInterval(checkIntervalRef);
                         checkIntervalRef = null;
-                        isAutoStartEnabled = false; // Stop feature once triggered
+                        isAutoStartEnabled = false;
                         
                         if (isPaused && !intervalRef) {
-                            toggleTimer(); // Starts the main timer
+                            toggleTimer();
                         } else {
-                            updateUI(); // Just update UI if state is weird
+                            updateUI();
                         }
                     }
-                }, 500); // Check every half second
+                }, 500);
             }
         }
 
@@ -453,7 +643,7 @@
 
         function handleAutoStartClick() {
             isAutoStartEnabled = !isAutoStartEnabled;
-            manageAutoStart(); // Call the logic handler
+            manageAutoStart();
         }
 
         // --- INITIALIZATION ---
@@ -483,3 +673,4 @@
     </script>
 </body>
 </html>
+
