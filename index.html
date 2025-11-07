@@ -1,3 +1,4 @@
+
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -19,7 +20,6 @@
             background-color: #000;
             color: #fff;
             position: relative;
-            padding: 1rem; /* p-4 */
             margin: 0;
         }
 
@@ -75,7 +75,7 @@
             transition: color 0.3s;
         }
         .timeline-label.is-passed {
-            color: #4ade80; /* text-green-400 */
+            color: lime; /* text-green-400 */
         }
 
         .timeline-dot {
@@ -124,10 +124,10 @@
             font-size: 1.7rem; /* text-2xl */
         }
         .color-yellow {
-            color: #facc15; /* text-yellow-400 */
+            color: yellow; /* text-yellow-400 */
         }
         .color-red {
-            color: #f87171; /* text-red-400 */
+            color: red; /* text-red-400 */
         }
         .color-white {
             color: #fff; /* text-white */
@@ -394,7 +394,7 @@
                 return `
                     <div>
                         <h1 class="${headerClass}">You must hand in ALL exam answer booklets</h1>
-                        <h2 class="${italicClass}">If you have not written in an answer booklet, please tick the box on the front before you hand it in.</h2>
+                        <h2 class="${italicClass}">If you have not written in an answer booklet, please put an 'X' in the box on the front before you hand it in.</h2>
                         <h2 class="${italicClass}">You may keep any resource booklets, or hand them in to be recycled.</h2>
                     </div>`;       
             }
@@ -411,7 +411,7 @@
                 return `
                     <div>
                         <h1 class="${headerClass}">You must hand in ALL exam answer booklets</h1>
-                        <h2 class="${italicClass}">If you have not written in an answer booklet, please tick the box on the front before you hand it in.</h2>
+                        <h2 class="${italicClass}">If you have not written in an answer booklet, please put an 'X' in the box on the front before you hand it in.</h2>
                         <h2 class="${italicClass}">You may keep any resource booklets, or hand them in to be recycled.</h2>
                     </div>`;
             }
