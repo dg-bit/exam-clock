@@ -1,676 +1,714 @@
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 
-<!DOCTYPE html>
-<html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Exam Timer</title>
+// --- CONFIGURATION ---
+// Set the default exam duration to 180 minutes (3 hours)
+const DEFAULT_DURATION_MINUTES = 180;
+const TOTAL_DURATION_SECONDS = DEFAULT_DURATION_MINUTES * 60;
+const WARNING_THRESHOLD_SECONDS = 15 * 60; // 15 minutes remaining
+const INITIAL_RESTRICTION_SECONDS = 45 * 60; // 45 minutes elapsed
+
+// Hard stop the extra time counter at 30 minutes (negative 1800 seconds)
+const EXTRA_TIME_LIMIT_SECONDS = -30 * 60; 
+
+// --- UTILITY FUNCTIONS ---
+
+// Helper to format seconds into H:MM (Used for marker labels)
+const formatTimeHMM = (totalSeconds) => {
+    const absSeconds = Math.abs(totalSeconds);
+    // H: single digit hour (no padStart)
+    const h = Math.floor(absSeconds / 3600); 
+    // MM: two digit minute (padStart)
+    const m = Math.floor((absSeconds % 3600) / 60);
+
+    let timeString = `${h}:${String(m).padStart(2, '0')}`;
     
-    <!-- 1. Import Google Font -->
-    <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Lexend:wght@200;400;600;700;800&display=swap" rel="stylesheet">
+    // Add negative sign if time is negative (overrun)
+    return totalSeconds < 0 ? `-${timeString}` : timeString;
+};
+
+// Helper to format seconds into H:MM:SS (Used for main countdown and overrun message)
+const formatTimeHHMMSS = (totalSeconds) => {
+    const absSeconds = Math.abs(totalSeconds);
+    const h = Math.floor(absSeconds / 3600);
+    const m = Math.floor((absSeconds % 3600) / 60);
+    const s = absSeconds % 60;
     
-    <!-- 2. INLINE CSS STYLES (Replaces Tailwind) -->
-    <style>
-        /* --- Base & Font --- */
-        body { 
-            font-family: 'Lexend', sans-serif; 
-            min-height: 100vh;
-            background-color: #000;
-            color: #fff;
-            position: relative;
-            margin: 0;
+    // H: single digit hour
+    let timeString = `${String(h)}:${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`;
+
+    // Add negative sign if time is negative (overrun)
+    return totalSeconds < 0 ? `-${timeString}` : timeString;
+};
+
+// Helper to format seconds into MM:SS (Used for extra time message)
+const formatTimeMMSS = (totalSeconds) => {
+    const absSeconds = Math.abs(totalSeconds);
+    const m = Math.floor(absSeconds / 60);
+    const s = absSeconds % 60;
+    
+    let timeString = `${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`;
+    
+    // Extra time is always negative in the state, so we don't need a '-' sign
+    return timeString;
+};
+
+// Helper to calculate the next half-hour (XX:00 or XX:30)
+const calculateNextHalfHourTime = () => {
+    const now = new Date();
+    let nextStart = new Date(now.getTime());
+
+    const currentMinutes = now.getMinutes();
+
+    if (currentMinutes < 30) {
+        // If minutes are 0-29, the next half hour is at :30
+        nextStart.setMinutes(30);
+    } else {
+        // If minutes are 30-59, the next half hour is the next hour at :00
+        nextStart.setHours(now.getHours() + 1); 
+        nextStart.setMinutes(0);
+    }
+    
+    // Always reset seconds and milliseconds
+    nextStart.setSeconds(0);
+    nextStart.setMilliseconds(0);
+    
+    return nextStart;
+};
+
+
+// --- Digital Clock Component ---
+// This clock displays the real-world current time in 24-hour format (without seconds).
+const DigitalClock = () => {
+    const [time, setTime] = useState(new Date());
+
+    useEffect(() => {
+        const timerId = setInterval(() => setTime(new Date()), 1000);
+        return () => clearInterval(timerId);
+    }, []);
+
+    // Format time as HH:MM (24-hour format)
+    const formattedTime = time.toLocaleTimeString('en-US', {
+        hour: '2-digit',
+        minute: '2-digit',
+        hour12: false // Enforce 24-hour format
+    });
+
+    return (
+        // Renders time as a single string
+        <div className="text-left text-6xl sm:text-8xl lg:text-9xl font-extrabold text-white">
+            {formattedTime}
+        </div>
+    );
+};
+
+// --- NEW: Exam Status Display Component ---
+// This component manages all the instructional text based on the timer's stage.
+const ExamStatusDisplay = ({
+    isPaused,
+    isFinished,
+    isWarning,
+    isRestricted,
+    isExtraTimeEnabled,
+    isAutoStartEnabled,
+    timeRemainingSeconds,
+    autoStartTime,
+    finishTime // Pass finishTime as a prop
+}) => {
+    
+    // --- Determine the current stage ---
+    
+    // Define the font size to match the interval markers
+    const instructionFontSize = "text-3xl sm:text-4xl md:text-5xl";
+    const h1Classes = `${instructionFontSize} font-bold mb-4 text-yellow-400`;
+    const h2Classes = `${instructionFontSize} italic mb-2 text-white`;
+
+    // NEW: This function renders ONLY the stage-specific instructions
+    const renderCurrentStageInstructions = () => {
+        // STAGE 1: Extra Time Hard Stop Reached
+        if (isExtraTimeEnabled && timeRemainingSeconds <= EXTRA_TIME_LIMIT_SECONDS) {
+            return (
+                <div>
+                    <h1 className={h1Classes}>
+                        The exam has ended.
+                    </h1>
+                    <h2 className={h2Classes}>
+                        You must stop writing.
+                    </h2>
+                    <h2 className={h2Classes}>
+                        Please remain silent as there may be other candidates still writing.
+                    </h2>
+                    <h2 className={h2Classes}>
+                        Listen carefully to all exit instructions.
+                    </h2>
+                    <h2 className={h2Classes}>
+                        You will be told when you can leave.
+                    </h2>
+                </div>
+            );
         }
 
-        /* --- Layout Containers --- */
-        main {
-            display: flex;
-            flex-direction: column;
-            align-items: center;
+        // STAGE 2: Extra Time is Active
+        if (isFinished && isExtraTimeEnabled && timeRemainingSeconds < 0) {
+            return (
+                <div>
+                    <h1 className={h1Classes}>
+                        Extra Time is in progress.
+                    </h1>
+                    <h2 className={`${instructionFontSize} italic mb-2 text-red-400`}>
+                        (Extra Time: {formatTimeMMSS(timeRemainingSeconds)})
+                    </h2>
+                </div>
+            );
         }
 
-        .content-wrapper {
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            justify-content: center;
-            width: 100%;
-            max-width: 56rem; /* max-w-4xl */
-            margin: 0 auto;
-            padding-top: 2rem; /* pt-8 */
-        }
-
-        /* --- 1. Timeline --- */
-        .timeline-container {
-            width: 100%;
-            display: flex;
-            justify-content: center;
-            align-items: flex-start;
-            margin-bottom: 0.5rem; /* mb-8 */
+        // STAGE 3: Finished (Standard)
+        if (isFinished) {
+            return (
+                <div>
+                    <h1 className={h1Classes}>
+                        The exam has ended.
+                    </h1>
+                    <h2 className={h2Classes}>
+                        You must stop writing.
+                    </h2>
+                    <h2 className={h2Classes}>
+                        Please remain silent as there may be other candidates still writing.
+                    </h2>
+                    <h2 className={h2Classes}>
+                        Listen carefully to all exit instructions.
+                    </h2>
+                    <h2 className={h2Classes}>
+                        You will be told when you can leave.
+                    </h2>
+                </div>
+            );
         }
         
-        #timeline-labels {
-            width: 100%;
-            position: relative;
-            height: 80vh;
+        // STAGE 4: Auto-Start Scheduled
+        if (isAutoStartEnabled && isPaused && autoStartTime) {
+             return (
+                <div>
+                    <h1 className={h1Classes}>
+                        You must hand in ALL exam answer booklets
+                    </h1>
+                    <h2 className={h2Classes}>
+                        If you have not written in an answer booklet, please tick the box on the front before you hand it in.
+                    </h2>
+                    <h2 className={h2Classes}>
+                        You may keep any resource booklets, or hand them in to be recycled.
+                    </h2>
+                </div>
+            );       
         }
 
-        .timeline-marker {
-            position: absolute;
-            width: 100%;
-            display: flex;
-            align-items: center;
-            justify-content: flex-end;
-            transform: translateY(-50%);
+        // STAGE 5: Timer Paused (Mid-Exam)
+        if (isPaused && timeRemainingSeconds < TOTAL_DURATION_SECONDS) {
+            return (
+                <div>
+                    <h1 className={h1Classes}>
+                        The exam is paused. Please stop writing
+                    </h1>
+                    <h2 className={h2Classes}>
+                        You will be told when you can begin writing again.
+                    </h2>
+                </div>
+            );
         }
 
-        .timeline-label {
-            margin-right: 1rem; /* mr-4 */
-            font-size: 1.875rem; /* text-3xl */
-            font-weight: 700; /* font-bold */
-            white-space: nowrap;
-            display: block;
-            color: #fff; /* text-white */
-            transition: color 0.3s;
-        }
-        .timeline-label.is-passed {
-            color: lime; /* text-green-400 */
-        }
-
-        .timeline-dot {
-            width: 1.25rem; /* w-5 */
-            height: 1.25rem; /* h-5 */
-            border-radius: 9999px; /* rounded-full */
-            background-color: #fff; /* bg-white */
-            transition: background-color 0.3s;
-        }
-        .timeline-dot.is-passed {
-            background-color: #22c55e; /* bg-green-500 */
+        // STAGE 6: Ready to Start (Initial State)
+        if (isPaused) {
+            return (
+                <div>
+                    <h1 className={h1Classes}>
+                        You must hand in ALL exam answer booklets
+                    </h1>
+                    <h2 className={h2Classes}>
+                        If you have not written in an answer booklet, please tick the box on the front before you hand it in.
+                    </h2>
+                    <h2 className={h2Classes}>
+                        You may keep any resource booklets, or hand them in to be recycled.
+                    </h2>
+                </div>
+            );
         }
 
-        /* --- 2. Main Content --- */
-        .main-content {
-            flex-grow: 1;
-            display: flex;
-            flex-direction: column;
-            align-items: flex-start; /* items-start */
-            width: 100%;
-        }
-
-        #digital-clock {
-            font-size: 8rem; /* text-7xl */
-            line-height: 1; /* leading-none */
-            font-weight: 800; /* font-extrabold */
-            color: #fff; /* text-white */
-        }
-
-        #exam-status-display {
-            width: 100%;
-            text-align: left;
+        // STAGE 7: Warning Period (Last 15 Mins)
+        if (isWarning) {
+            return (
+                <div>
+                    <h1 className={h1Classes}>
+                        You may not leave in the final 15 minutes of the exam.
+                    </h1>
+                    <h2 className={h2Classes}>
+                        If you are finished, stay seated and wait for the exam to end.
+                    </h2>
+                </div>
+            );
         }
         
-        /* Dynamic instruction text classes */
-        .instruction-text {
-            font-size: 2rem; /* text-2xl */
-        }
-        .instruction-header {
-            font-weight: 700; /* font-bold */
-            font-size: 1.7rem; /* text-2xl */
-            margin-bottom: 0.5rem; /* mb-4 */
-        }
-        .instruction-italic {
-            font-style: italic;
-            font-size: 1.7rem; /* text-2xl */
-        }
-        .color-yellow {
-            color: yellow; /* text-yellow-400 */
-        }
-        .color-red {
-            color: red; /* text-red-400 */
-        }
-        .color-white {
-            color: #fff; /* text-white */
+        // STAGE 8: Restriction Period (First 45 Mins)
+        if (isRestricted) {
+            return (
+                <div>
+                    <h1 className={h1Classes}>
+                        You may not leave in the first 45 minutes of the exam.
+                    </h1>
+                    <h2 className={h2Classes}>
+                        Please stay in your seat. If you need a supervisor, raise your hand.
+                    </h2>
+                </div>
+            );
         }
 
+        // STAGE 9: Exam In Progress (Default)
+        return (
+            <div>
+                <h1 className={h1Classes}>
+                    Please remain seated at your desk at all times.
+                </h1>
+                <h2 className={h2Classes}>
+                    If you need to visit the bathroom, raise your hand.
+                </h2>
+                <h2 className={h2Classes}>
+                    If you are finished and would like to leave, raise your hand.
+                </h2>
+            </div>
+        );
+    };
 
-        /* --- 3. Button Bar --- */
-        .button-bar {
-            position: fixed;
-            bottom: 0;
-            left: 0;
-            right: 0;
-            display: flex;
-            justify-content: center;
-            align-items: center;
-            padding: 0.5rem 0; /* py-6 */
-            z-index: 50;
+    // This function now ONLY renders the finish time
+    const renderFinishTime = () => {
+        // Show if finishTime is set AND exam is not finished
+        if (finishTime && !isFinished) { 
+            return (
+                <h2 className={`${h2Classes} mt-8`}>
+                    The exam will finish at {finishTime.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: false })}
+                </h2>
+            );
+        }
+        return null;
+    };
+
+    // NEW: Main return for ExamStatusDisplay uses flex to anchor finish time
+    return (
+        <div className="flex flex-col justify-between flex-grow h-full">
+            {/* Top part: Instructions */}
+            <div>
+                {renderCurrentStageInstructions()}
+            </div>
+
+            {/* Bottom part: Anchored Finish Time */}
+            <div>
+                {renderFinishTime()}
+            </div>
+        </div>
+    );
+};
+
+
+// --- Main App Component ---
+const App = () => {
+    // timeRemainingSeconds is the core state
+    const [timeRemainingSeconds, setTimeRemainingSeconds] = useState(TOTAL_DURATION_SECONDS);
+    const [isPaused, setIsPaused] = useState(true);
+    const [isFinished, setIsFinished] = useState(false);
+    
+    // New State for Auto-Start Feature
+    const [isAutoStartEnabled, setIsAutoStartEnabled] = useState(false);
+    const [autoStartTime, setAutoStartTime] = useState(null); // Stores the Date object for scheduled start
+    
+    // Existing State for Extra Time
+    const [isExtraTimeEnabled, setIsExtraTimeEnabled] = useState(false);
+    
+    // NEW: State for calculated start and finish times
+    const [startTime, setStartTime] = useState(null); // Stores Date object for expected start
+    const [finishTime, setFinishTime] = useState(null); // Stores Date object for expected finish
+
+    // Ref for the main timer loop
+    const intervalRef = useRef(null);
+    // Ref for the auto-start check loop
+    const checkIntervalRef = useRef(null);
+
+    // Function to handle the actual countdown logic
+    const tick = useCallback(() => {
+        setTimeRemainingSeconds(prevTime => {
+            const newTime = prevTime - 1;
+            
+            // Check 1: Extra Time OFF - Hard Stop at Zero
+            if (!isExtraTimeEnabled && newTime < 0) {
+                clearInterval(intervalRef.current);
+                intervalRef.current = null;
+                setIsPaused(true);
+                setIsFinished(true);
+                return 0; // Fix time at 0
+            }
+
+            // Check 2: Extra Time ON - Hard Stop at Limit (-30:00)
+            if (isExtraTimeEnabled && newTime <= EXTRA_TIME_LIMIT_SECONDS) {
+                clearInterval(intervalRef.current);
+                intervalRef.current = null;
+                setIsPaused(true);
+                setIsFinished(true);
+                return EXTRA_TIME_LIMIT_SECONDS; // Fix time at limit
+            }
+
+            // Check 3: Main Finish Notification (Always happens at 0)
+            if (newTime <= 0 && prevTime > 0) {
+                setIsFinished(true);
+            }
+            
+            // Allow timer to continue counting (even if negative and extra time is enabled)
+            return newTime;
+        });
+    }, [isExtraTimeEnabled]);
+
+    // Start/Pause Toggle (now wrapped in useCallback due to auto-start dependency)
+    const toggleTimer = useCallback(() => {
+        if (isPaused) {
+            // Start the timer
+            if (!intervalRef.current) {
+                // If this is the *first* start (not a resume), set the finish time
+                if (timeRemainingSeconds === TOTAL_DURATION_SECONDS) {
+                    const now = new Date();
+                    const finish = new Date(now.getTime() + TOTAL_DURATION_SECONDS * 1000);
+                    setStartTime(now); // NEW: Set start time
+                    setFinishTime(finish);
+                }
+                intervalRef.current = setInterval(tick, 1000);
+            }
+            setIsPaused(false);
+        } else {
+            // Pause the timer
+            if (intervalRef.current) {
+                clearInterval(intervalRef.current);
+                intervalRef.current = null;
+            }
+            setIsPaused(true);
+        }
+    }, [isPaused, tick, timeRemainingSeconds]);
+
+    // Reset Function
+    const resetTimer = () => {
+        if (intervalRef.current) {
+            clearInterval(intervalRef.current);
+            intervalRef.current = null;
+        }
+        // Clear auto-start schedule on reset
+        if (checkIntervalRef.current) {
+            clearInterval(checkIntervalRef.current);
+            checkIntervalRef.current = null;
+        }
+        setIsAutoStartEnabled(false);
+        setAutoStartTime(null);
+        setStartTime(null); // NEW: Clear the start time on reset
+        setFinishTime(null); // NEW: Clear the finish time on reset
+
+        setTimeRemainingSeconds(TOTAL_DURATION_SECONDS);
+        setIsPaused(true);
+        setIsFinished(false);
+    };
+    
+    // --- Auto-Start Logic ---
+    useEffect(() => {
+        // Clear interval and schedule if feature is off, timer is running, or exam is finished
+        if (!isAutoStartEnabled || !isPaused || isFinished) {
+            if (checkIntervalRef.current) {
+                clearInterval(checkIntervalRef.current);
+                checkIntervalRef.current = null;
+            }
+            // Only clear the auto-start time if the feature is manually turned off
+            if (!isAutoStartEnabled) {
+                setAutoStartTime(null);
+            }
+            return;
+        }
+
+        // If enabled and paused, calculate the target time only once
+        if (!autoStartTime) {
+            setAutoStartTime(calculateNextHalfHourTime());
+            return;
+        }
+
+        // Start a fast interval to check against real-time
+        if (!checkIntervalRef.current) {
+            checkIntervalRef.current = setInterval(() => {
+                const now = new Date();
+                
+                // If current time is greater than or equal to the scheduled auto-start time
+                if (now.getTime() >= autoStartTime.getTime()) {
+                    // 1. Clear the check interval
+                    clearInterval(checkIntervalRef.current);
+                    checkIntervalRef.current = null;
+                    
+                    // 2. Stop auto-start feature once triggered
+                    setIsAutoStartEnabled(false); 
+
+                    // 3. Trigger the main timer start
+                    if (isPaused && !intervalRef.current) {
+                        // NEW: Calculate and set finish time on auto-start
+                        const calculatedStartTime = new Date(); // Use the 'now' time from the interval
+                        const finish = new Date(calculatedStartTime.getTime() + TOTAL_DURATION_SECONDS * 1000);
+                        setStartTime(calculatedStartTime); // NEW: Set start time
+                        setFinishTime(finish);
+                        
+                        toggleTimer(); // Starts the main timer and sets isPaused=false
+                    }
+                }
+            }, 500); // Check every half second
+        }
+
+        // Cleanup function for this effect
+        return () => {
+            if (checkIntervalRef.current) {
+                clearInterval(checkIntervalRef.current);
+                checkIntervalRef.current = null;
+            }
+        };
+    }, [isAutoStartEnabled, isPaused, isFinished, autoStartTime, toggleTimer]);
+
+
+    // Cleanup interval on unmount
+    useEffect(() => {
+        return () => {
+            if (intervalRef.current) {
+                clearInterval(intervalRef.current);
+            }
+            if (checkIntervalRef.current) {
+                clearInterval(checkIntervalRef.current);
+            }
+        };
+    }, []);
+
+    // Progress Calculation
+    const timeElapsedSeconds = TOTAL_DURATION_SECONDS - timeRemainingSeconds;
+    
+    // Dynamic states
+    const isWarning = timeRemainingSeconds > 0 && timeRemainingSeconds <= WARNING_THRESHOLD_SECONDS;
+    
+    // FIX: Changed timeElapsedSeconds > 0 to timeElapsedSeconds >= 0
+    // This ensures the restricted state is active immediately when the timer starts (at t=0),
+    // preventing the 1-second flash of the "in progress" message.
+    const isRestricted = !isPaused && timeElapsedSeconds >= 0 && timeElapsedSeconds <= INITIAL_RESTRICTION_SECONDS; 
+    
+    // Determine if the manual Start button should be disabled
+    const isStartButtonDisabled = isAutoStartEnabled;
+    
+    // --- Vertical Timeline Label Rendering Function ---
+    const renderVerticalTimelineLabels = () => {
+        const labels = [];
+        const intervalMins = 15; // 15-minute markers as requested
+        
+        for (let min = 0; min <= DEFAULT_DURATION_MINUTES; min += intervalMins) {
+            const percent = (min / DEFAULT_DURATION_MINUTES) * 100;
+            const timeSeconds = min * 60;
+            
+            // Use the H:MM format helper
+            const timeLabel = formatTimeHMM(timeSeconds).replace('-', ''); // No negative sign for timeline markers
+
+            // Identify Major Labels based on specific exam times
+            // 0 (Start), 45 (Restriction end), 165 (Warning start = 180-15), 180 (Finish)
+            let isMajorLabel = (min === 0 || min === 45 || min === 165 || min === DEFAULT_DURATION_MINUTES);
+            
+            let labelText = timeLabel;
+            
+            // Handle "Start" label
+            if (min === 0) {
+                labelText = 'Start';
+            }
+            
+            // Handle "Finish" label
+            if (min === DEFAULT_DURATION_MINUTES) {
+                labelText = 'Finish';
+            }
+
+            labels.push({ 
+                time: labelText,
+                percent, 
+                isMajorLabel,
+                markerTimeSeconds: timeSeconds // Store marker time in seconds
+            });
         }
         
-        .button-bar button {
-            font-family: 'Lexend', sans-serif; 
-            font-size: 0.7rem; /* text-base */
-            font-weight: 300; /* font-semibold */
-            color: #fff;
-            background: none;
-            border: none;
-            cursor: pointer;
-            opacity: 0.15; /* opacity-15 */
-            transition: opacity 0.2s;
-            margin: 0 1.5rem; /* space-x-12 (approx) */
-        }
-        
-        .button-bar button:disabled,
-        .button-bar button.is-disabled {
-            opacity: 0.10; /* opacity-10 */
-            cursor: not-allowed;
-        }
+        return labels.map((label, index) => {
+            const topPosition = label.percent;
+            
+            // Check if the marker time has been passed/consumed
+            let isPassed = label.markerTimeSeconds <= timeElapsedSeconds;
+            
+            // FIX: The 'Start' marker (time=0) has special logic.
+            // It should be green if the timer is running, OR if time has elapsed, OR if finished.
+            // This ensures it stays green when paused mid-exam.
+            if (label.markerTimeSeconds === 0) {
+                // (isPaused && timeElapsedSeconds > 0) -> Paused mid-exam
+                // (!isPaused) -> Timer is actively running
+                // (isFinished) -> Exam is over
+                isPassed = (isPaused && timeElapsedSeconds > 0) || !isPaused || isFinished;
+            }
+            
+            // Passed marker remains green-400. Unpassed marker is now pure white.
+            // UPDATED: Font weight is now dynamic based on isMajorLabel.
+            // Major = font-bold (700), Minor = font-normal (400).
+            const labelClasses = `text-3xl sm:text-4xl md:text-5xl ${label.isMajorLabel ? 'font-bold' : 'font-normal'} whitespace-nowrap block ${isPassed ? 'text-green-500/100' : 'text-white'}`;
+            
+            // --- UNIFORM POSITIONING LOGIC ---
+            // All markers (Start, Finish, intermediate) use the same positioning
+            // to ensure mathematically identical spacing between their centers.
+            let markerStyle = {
+                top: `${topPosition}%`,
+                transform: 'translateY(-50%)'
+            };
 
-        /* --- Responsive Media Queries --- */
-        
-        /* sm: (640px) */
-        @media (min-width: 640px) {
-            body {
-                padding: 2rem; /* sm:p-8 */
-            }
-            .timeline-label {
-                font-size: 2.25rem; /* sm:text-4xl */
-            }
-            #digital-clock {
-                font-size: 5.625rem; /* sm:text-9xl */
-            }
-            .instruction-text {
-                font-size: 1.875rem; /* sm:text-3xl */
-            }
-            .button-bar button {
-                font-size: 1.125rem; /* sm:text-lg */
-            }
-        }
-        
-        /* md: (768px) */
-        @media (min-width: 768px) {
-            .content-wrapper {
-                flex-direction: row; /* md:flex-row */
-                align-items: flex-start; /* md:items-start */
-            }
-            .timeline-container {
-                width: 12rem; /* md:w-48 */
-                justify-content: flex-end; /* md:justify-end */
-                margin-right: 4rem; /* md:mr-16 */
-                margin-bottom: 0; /* md:mb-0 */
-            }
-        }
+            return (
+                <div 
+                    key={index}
+                    // Absolute positioning with dynamic style
+                    className="absolute w-full flex items-center justify-end"
+                    style={markerStyle} 
+                >
+                    {/* UPDATED: Text Label container */}
+                    <div className="mr-4 text-right">
+                        <span className={labelClasses}>
+                            {label.time}
+                        </span>
+                        {/* REMOVED: Finish time text was moved to ExamStatusDisplay */}
+                    </div>
+                    
+                    {/* UPDATED: Marker Indicator: Heavy Checkmark Tick
+                      - Color: 'text-gray-700' (visible but "off") by default, 'text-green-400' when passed
+                      - Size: text-2xl sm:text-3xl md:text-4xl (approx 0.8x of label)
+                    */}
+                    <span 
+                        className={`text-2xl sm:text-3xl md:text-4xl ${isPassed ? 'text-green-400' : 'opacity-0'}`}
+                    >
+                        ✔
+                    </span>
+                </div>
+            );
+        });
+    };
 
-        /* lg: (1024px) */
-        @media (min-width: 1024px) {
-            .timeline-label {
-                font-size: 3rem; /* lg:text-5xl */
-            }
-            #digital-clock {
-                font-size: 8rem; /* lg:text-[12rem] - (12rem is huge, toning down to 8rem) */
-            }
-            .instruction-text {
-                font-size: 2.25rem; /* lg:text-4xl */
-            }
-            .button-bar button {
-                font-size: 1.25rem; /* lg:text-xl */
-            }
-        }
 
-    </style>
-</head>
-<body class="bg-black text-white"> <!-- Removed Tailwind classes -->
+    return (
+        // Full black background and pure white default text
+        <div className="min-h-screen bg-black font-sans p-4 sm:p-8 text-white relative">
+            <style>
+                {`
+                /* UPDATED: Removed Google Font import for Lexend */
+                body { font-family: 'Helvetica', 'Arial', sans-serif; }
+                `}
+            </style>
 
-    <!-- Main Content Area -->
-    <main>
-        <!-- Removed Tailwind classes -->
-        <div class="content-wrapper">
+            {/* Main Content Area: Removed pt-40. pb-20 added for the fixed button bar */}
+            <main className="flex flex-col items-center pb-20"> 
 
-            <!-- 1. Vertical Timeline (Left Side) -->
-            <div class="timeline-container">
-                <div class="w-full relative">
-                    <div id="timeline-labels">
-                        <!-- Timeline Labels and Ticks will be injected here by JS -->
+                {/* UPDATED GRID LAYOUT FOR 16:9 WIDESCREEN */}
+                {/* Changed flex to grid-cols-3 for 1/3 + 2/3 split. Increased max-w. */}
+                <div className="grid grid-cols-1 md:grid-cols-3 w-full max-w-7xl mx-auto pt-8 gap-8 md:gap-16">
+
+                    {/* 1. Vertical Timeline (Left Third = col-span-1) */}
+                    {/* UPDATED: Removed fixed width, uses col-span-1. Adjusted justification. */}
+                    <div className="col-span-1 h-[80vh] flex justify-center md:justify-end items-start">
+                        {/* Timeline container: Relative for absolute positioning of labels */}
+                        <div className="w-56 h-full relative py-8"> 
+                            
+                            {/* Timeline Labels and Ticks */}
+                            {renderVerticalTimelineLabels()}
+                        </div>
+                    </div>
+
+
+                    {/* 2. Main Timer Content (Right Two-Thirds = col-span-2) */}
+                    {/* UPDATED: Uses col-span-2. Added padding-left for separation. */}
+                    <div className="col-span-1 md:col-span-2 flex flex-col items-start h-[80vh] py-8 pl-4 md:pl-12"> 
+                        
+                        {/* 1. TOP CLOCK SECTION */}
+                        {/* Wrapper div for side-by-side layout */}
+                        <div className="w-full flex justify-between items-start mb-12">
+                            {/* Main Clock */}
+                            <DigitalClock />
+                            
+                            {/* Start/Finish Time Display */}
+                            {startTime && finishTime && (
+                                <div className="text-right text-white pt-2">
+                                    <p className="text-2xl sm:text-3xl font-medium">
+                                        Start: {startTime.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: false })}
+                                    </p>
+                                    <p className="text-2xl sm:text-3xl font-medium">
+                                        Finish: {finishTime.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: false })}
+                                    </p>
+                                </div>
+                            )}
+                        </div>
+                        
+                        {/* Status/Warning Message */}
+                        {/* Added flex-grow to fill the 80vh height */}
+                        <div className="w-full max-w-3xl text-left flex-grow flex flex-col">
+                            
+                            {/* ExamStatusDisplay component */}
+                            <ExamStatusDisplay
+                                isPaused={isPaused}
+                                isFinished={isFinished}
+                                isWarning={isWarning}
+                                isRestricted={isRestricted}
+                                isExtraTimeEnabled={isExtraTimeEnabled}
+                                isAutoStartEnabled={isAutoStartEnabled}
+                                timeRemainingSeconds={timeRemainingSeconds}
+                                autoStartTime={autoStartTime}
+                                finishTime={finishTime} // Pass finishTime to the display component
+                            />
+
+                        </div>
+
                     </div>
                 </div>
-            </div>
-
-            <!-- 2. Main Timer Content (Center) -->
-            <div class="main-content">
+            </main>
+            
+            {/* 3. FIXED BOTTOM BUTTONS: Single line, centered, fixed to the bottom */}
+            <div 
+                className="fixed inset-x-0 bottom-0 flex justify-center items-center py-6 bg-black/90 z-50 space-x-12"
+            >
                 
-                <!-- 1. TOP LEFT CLOCK (Dynamic) -->
-                <div id="digital-clock">
-                    <!-- Current time will be injected here by JS -->
-                </div>
+                {/* Start/Pause Button */}
+                <button
+                    onClick={toggleTimer}
+                    className={`text-lg sm:text-xl font-semibold text-white hover:opacity-10 ${isStartButtonDisabled ? 'opacity-10' : 'opacity-15'}`}
+                    style={{ opacity: 0.15 }}
+                    disabled={isStartButtonDisabled || (timeRemainingSeconds <= EXTRA_TIME_LIMIT_SECONDS && isExtraTimeEnabled)}
+                >
+                    {isPaused ? 'Start' : 'Pause'}
+                </button>
                 
-                <!-- Status/Warning Message (Dynamic) -->
-                <div id="exam-status-display">
-                    <!-- Exam status messages will be injected here by JS -->
-                </div>
-            </div>
+                {/* Reset Button */}
+                <button
+                    onClick={resetTimer}
+                    className="text-lg sm:text-xl font-semibold transition-opacity duration-200 text-white hover:opacity-15"
+                    style={{ opacity: 0.15 }}
+                >
+                    Reset
+                </button>
 
+                {/* Configuration Control: Extra Time Toggle */}
+                <button
+                    onClick={() => setIsExtraTimeEnabled(prev => !prev)}
+                    className={`text-lg sm:text-xl font-semibold transition-opacity duration-200 text-white hover:opacity-15`}
+                    style={{ opacity: 0.15 }}
+                    disabled={timeRemainingSeconds <= EXTRA_TIME_LIMIT_SECONDS && isExtraTimeEnabled}
+                >
+                    Extra Time {isExtraTimeEnabled ? 'ON' : 'OFF'}
+                </button>
+                
+                {/* NEW: Auto-Start Toggle */}
+                <button
+                    onClick={() => setIsAutoStartEnabled(prev => !prev)}
+                    className={`text-lg sm:text-xl font-semibold transition-opacity duration-200 text-white hover:opacity-15`}
+                    style={{ opacity: isAutoStartEnabled ? 0.15 : 0.15 }}
+                    disabled={!isPaused || isFinished} // Only allowed when paused and not finished
+                >
+                    Auto-Start {isAutoStartEnabled ? 'ON' : 'OFF'}
+                </button>
+            </div>
         </div>
-    </main>
+    );
+};
 
-    <!-- 3. FIXED BOTTOM BUTTONS -->
-    <div class="button-bar">
-        
-        <!-- Start/Pause Button -->
-        <button id="toggle-btn">Start</button>
-        
-        <!-- Reset Button -->
-        <button id="reset-btn">Reset</button>
-
-        <!-- Extra Time Toggle -->
-        <button id="extra-time-btn">Extra Time OFF</button>
-        
-        <!-- Auto-Start Toggle -->
-        <button id="auto-start-btn">Auto-Start OFF</button>
-    </div>
-
-
-    <!-- 4. JAVASCRIPT LOGIC -->
-    <script>
-        // --- CONFIGURATION ---
-        const DEFAULT_DURATION_MINUTES = 180;
-        const TOTAL_DURATION_SECONDS = DEFAULT_DURATION_MINUTES * 60;
-        const WARNING_THRESHOLD_SECONDS = 15 * 60; // 15 minutes remaining
-        const INITIAL_RESTRICTION_SECONDS = 45 * 60; // 45 minutes elapsed
-        const EXTRA_TIME_LIMIT_SECONDS = -30 * 60; // Hard stop at -30 minutes
-
-        // --- STATE VARIABLES ---
-        let timeRemainingSeconds = TOTAL_DURATION_SECONDS;
-        let isPaused = true;
-        let isFinished = false;
-        let isAutoStartEnabled = false;
-        let autoStartTime = null;
-        let isExtraTimeEnabled = false;
-        
-        // --- TIMER REFS ---
-        let intervalRef = null;
-        let checkIntervalRef = null;
-
-        // --- DOM ELEMENT REFS ---
-        let digitalClockEl;
-        let timelineLabelsEl;
-        let examStatusDisplayEl;
-        let toggleBtn;
-        let resetBtn;
-        let extraTimeBtn;
-        let autoStartBtn;
-
-        // --- UTILITY FUNCTIONS ---
-        const formatTimeHMM = (totalSeconds) => {
-            const absSeconds = Math.abs(totalSeconds);
-            const h = Math.floor(absSeconds / 3600); 
-            const m = Math.floor((absSeconds % 3600) / 60);
-            let timeString = `${h}:${String(m).padStart(2, '0')}`;
-            return totalSeconds < 0 ? `-${timeString}` : timeString;
-        };
-        
-        const formatTimeMMSS = (totalSeconds) => {
-            const absSeconds = Math.abs(totalSeconds);
-            const m = Math.floor(absSeconds / 60);
-            const s = absSeconds % 60;
-            return `${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`;
-        };
-
-        const calculateNextHalfHourTime = () => {
-            const now = new Date();
-            let nextStart = new Date(now.getTime());
-            const currentMinutes = now.getMinutes();
-            if (currentMinutes < 30) {
-                nextStart.setMinutes(30);
-            } else {
-                nextStart.setHours(now.getHours() + 1); 
-                nextStart.setMinutes(0);
-            }
-            nextStart.setSeconds(0);
-            nextStart.setMilliseconds(0);
-            return nextStart;
-        };
-
-        // --- "COMPONENT" RENDER FUNCTIONS (Return HTML Strings) ---
-
-        // Renders the Digital Clock (self-contained logic)
-        function startDigitalClock() {
-            if (!digitalClockEl) return;
-            
-            const updateClock = () => {
-                const time = new Date();
-                const formattedTime = time.toLocaleTimeString('en-US', {
-                    hour: '2-digit',
-                    minute: '2-digit',
-                    hour12: false
-                });
-                digitalClockEl.textContent = formattedTime;
-            };
-            
-            updateClock(); // Initial call
-            setInterval(updateClock, 1000); // Update every second
-        }
-
-        // Renders the Exam Status Display HTML
-        function getExamStatusDisplayHTML(state) {
-            const { isPaused, isFinished, isWarning, isRestricted, isExtraTimeEnabled, isAutoStartEnabled, timeRemainingSeconds, autoStartTime } = state;
-            
-            // CSS classes are now defined in the <style> tag
-            const baseClass = "instruction-text";
-            const headerClass = `${baseClass} instruction-header color-yellow`;
-            const italicClass = `${baseClass} instruction-italic color-white`;
-
-            // --- STAGE 1: Extra Time Hard Stop ---
-            if (isExtraTimeEnabled && timeRemainingSeconds <= EXTRA_TIME_LIMIT_SECONDS) {
-                return `
-                    <div>
-                        <h1 class="${headerClass}">The exam has ended.</h1>
-                        <h2 class="${italicClass}">You must stop writing.</h2>
-                        <h2 class="${italicClass}">Please remain silent as there may be other candidates still writing.</h2>
-                        <h2 class="${italicClass}">Listen carefully to all exit instructions.</h2>
-                        <h2 class="${italicClass}">You will be told when you can leave.</h2>
-                    </div>`;
-            }
-            // --- STAGE 2: Extra Time Active ---
-            if (isFinished && isExtraTimeEnabled && timeRemainingSeconds < 0) {
-                return `
-                    <div>
-                        <h1 class="${headerClass}">Extra Time is in progress.</h1>
-                        <h2 class="${baseClass} instruction-italic color-red">(Extra Time: ${formatTimeMMSS(timeRemainingSeconds)})</h2>
-                    </div>`;
-            }
-            // --- STAGE 3: Finished (Standard) ---
-            if (isFinished) {
-                return `
-                    <div>
-                        <h1 class="${headerClass}">The exam has ended.</h1>
-                        <h2 class="${italicClass}">You must stop writing.</h2>
-                        <h2 class="${italicClass}">Please remain silent as there may be other candidates still writing.</h2>
-                        <h2 class="${italicClass}">Listen carefully to all exit instructions.</h2>
-                        <h2 class="${italicClass}">You will be told when you can leave.</h2>
-                    </div>`;
-            }
-            // --- STAGE 4: Auto-Start Scheduled ---
-            if (isAutoStartEnabled && isPaused && autoStartTime) {
-                return `
-                    <div>
-                        <h1 class="${headerClass}">You must hand in ALL exam answer booklets</h1>
-                        <h2 class="${italicClass}">If you have not written in an answer booklet, please put an 'X' in the box on the front before you hand it in.</h2>
-                        <h2 class="${italicClass}">You may keep any resource booklets, or hand them in to be recycled.</h2>
-                    </div>`;       
-            }
-            // --- STAGE 5: Timer Paused (Mid-Exam) ---
-            if (isPaused && timeRemainingSeconds < TOTAL_DURATION_SECONDS) {
-                return `
-                    <div>
-                        <h1 class="${headerClass}">The exam is paused. Please stop writing</h1>
-                        <h2 class="${italicClass}">You will be told when you can begin writing again.</h2>
-                    </div>`;
-            }
-            // --- STAGE 6: Ready to Start (Initial State) ---
-            if (isPaused) {
-                return `
-                    <div>
-                        <h1 class="${headerClass}">You must hand in ALL exam answer booklets</h1>
-                        <h2 class="${italicClass}">If you have not written in an answer booklet, please put an 'X' in the box on the front before you hand it in.</h2>
-                        <h2 class="${italicClass}">You may keep any resource booklets, or hand them in to be recycled.</h2>
-                    </div>`;
-            }
-            // --- STAGE 7: Warning Period ---
-            if (isWarning) {
-                return `
-                    <div>
-                        <h1 class="${headerClass}">You may not leave in the final 15 minutes of the exam.</h1>
-                        <h2 class="${italicClass}">If you are finished, stay seated and wait for the exam to end.</h2>
-                    </div>`;
-            }
-            // --- STAGE 8: Restriction Period ---
-            if (isRestricted) {
-                return `
-                    <div>
-                        <h1 class="${headerClass}">You may not leave in the first 45 minutes of the exam.</h1>
-                        <h2 class="${italicClass}">Please stay in your seat. If you need a supervisor, raise your hand.</h2>
-                    </div>`;
-            }
-            // --- STAGE 9: Exam In Progress (Default) ---
-            return `
-                <div>
-                    <h1 class="${headerClass}">Please remain seated at your desk at all times.</h1>
-                    <h2 class="${italicClass}">If you need to visit the bathroom, raise your hand.</h2>
-                    <h2 class="${italicClass}">If you are finished and would like to leave, raise your hand.</h2>
-                </div>`;
-        }
-
-        // Renders the Vertical Timeline HTML
-        function getVerticalTimelineLabelsHTML(state) {
-            const { timeRemainingSeconds, isPaused, isFinished } = state;
-            const timeElapsedSeconds = TOTAL_DURATION_SECONDS - timeRemainingSeconds;
-            
-            let labelsHTML = '';
-            const intervalMins = 15; 
-
-            for (let min = 0; min <= DEFAULT_DURATION_MINUTES; min += intervalMins) {
-                const percent = (min / DEFAULT_DURATION_MINUTES) * 100;
-                const timeSeconds = min * 60;
-                const timeLabel = formatTimeHMM(timeSeconds).replace('-', '');
-
-                const time = min === 0 ? 'Start' : (min === DEFAULT_DURATION_MINUTES ? 'Finish' : timeLabel);
-                
-                let isPassed = timeSeconds <= timeElapsedSeconds;
-                if (timeSeconds === 0) {
-                    isPassed = !isPaused || (timeElapsedSeconds > 0) || isFinished;
-                }
-
-                // UPDATED: Use new CSS classes
-                const passedClass = isPassed ? 'is-passed' : '';
-                
-                labelsHTML += `
-                    <div class="timeline-marker" style="top: ${percent}%;">
-                        <span class="timeline-label ${passedClass}">${time}</span>
-                        <div class="timeline-dot ${passedClass}"></div>
-                    </div>`;
-            }
-            return labelsHTML;
-        }
-
-        // --- MAIN UI UPDATE FUNCTION ---
-        function updateUI() {
-            if (!timelineLabelsEl || !examStatusDisplayEl || !toggleBtn || !resetBtn || !extraTimeBtn || !autoStartBtn) {
-                console.error("DOM elements not found. UI cannot update.");
-                return;
-            }
-
-            // 1. Calculate derived state
-            const timeElapsedSeconds = TOTAL_DURATION_SECONDS - timeRemainingSeconds;
-            const isWarning = timeRemainingSeconds > 0 && timeRemainingSeconds <= WARNING_THRESHOLD_SECONDS;
-            const isRestricted = !isPaused && timeElapsedSeconds >= 0 && timeElapsedSeconds <= INITIAL_RESTRICTION_SECONDS; 
-            
-            // 2. Create a state snapshot object
-            const currentState = {
-                isPaused,
-                isFinished,
-                isWarning,
-                isRestricted,
-                isExtraTimeEnabled,
-                isAutoStartEnabled,
-                timeRemainingSeconds,
-                autoStartTime
-            };
-
-            // 3. Update Timeline
-            timelineLabelsEl.innerHTML = getVerticalTimelineLabelsHTML(currentState);
-
-            // 4. Update Status Display
-            examStatusDisplayEl.innerHTML = getExamStatusDisplayHTML(currentState);
-
-            // 5. Update Buttons
-            const isStartButtonDisabled = isAutoStartEnabled;
-            const isAtHardStop = (timeRemainingSeconds <= EXTRA_TIME_LIMIT_SECONDS && isExtraTimeEnabled);
-            const isAutoStartDisabled = !isPaused || isFinished;
-
-            // Toggle Button
-            toggleBtn.textContent = isPaused ? 'Start' : 'Pause';
-            toggleBtn.disabled = isStartButtonDisabled || isAtHardStop;
-            // UPDATED: Use classList.toggle with 'is-disabled'
-            toggleBtn.classList.toggle('is-disabled', toggleBtn.disabled);
-
-            // Extra Time Button
-            extraTimeBtn.textContent = `Extra Time ${isExtraTimeEnabled ? 'ON' : 'OFF'}`;
-            extraTimeBtn.disabled = isAtHardStop;
-            extraTimeBtn.classList.toggle('is-disabled', extraTimeBtn.disabled);
-            
-            // Auto-Start Button
-            autoStartBtn.textContent = `Auto-Start ${isAutoStartEnabled ? 'ON' : 'OFF'}`;
-            autoStartBtn.disabled = isAutoStartDisabled;
-            autoStartBtn.classList.toggle('is-disabled', autoStartBtn.disabled);
-        }
-
-        // --- TIMER LOGIC ---
-        function tick() {
-            timeRemainingSeconds = timeRemainingSeconds - 1;
-            
-            let shouldStopTimer = false;
-
-            if (!isExtraTimeEnabled && timeRemainingSeconds < 0) {
-                shouldStopTimer = true;
-                isFinished = true;
-                timeRemainingSeconds = 0;
-            }
-
-            if (isExtraTimeEnabled && timeRemainingSeconds <= EXTRA_TIME_LIMIT_SECONDS) {
-                shouldStopTimer = true;
-                isFinished = true;
-                timeRemainingSeconds = EXTRA_TIME_LIMIT_SECONDS;
-            }
-            
-            if (timeRemainingSeconds <= 0 && (timeRemainingSeconds + 1) > 0) {
-                isFinished = true;
-            }
-            
-            if (shouldStopTimer && intervalRef) {
-                clearInterval(intervalRef);
-                intervalRef = null;
-                isPaused = true;
-            }
-            
-            updateUI();
-        }
-
-        function toggleTimer() {
-            if (isPaused) {
-                if (!intervalRef) {
-                    intervalRef = setInterval(tick, 1000);
-                }
-                isPaused = false;
-            } else {
-                if (intervalRef) {
-                    clearInterval(intervalRef);
-                    intervalRef = null;
-                }
-                isPaused = true;
-            }
-            updateUI();
-        }
-
-        function resetTimer() {
-            if (intervalRef) {
-                clearInterval(intervalRef);
-                intervalRef = null;
-            }
-            if (checkIntervalRef) {
-                clearInterval(checkIntervalRef);
-                checkIntervalRef = null;
-            }
-            isAutoStartEnabled = false;
-            autoStartTime = null;
-            timeRemainingSeconds = TOTAL_DURATION_SECONDS;
-            isPaused = true;
-            isFinished = false;
-            
-            updateUI();
-        }
-
-        // --- AUTO-START LOGIC ---
-        function manageAutoStart() {
-            if (!isAutoStartEnabled || !isPaused || isFinished) {
-                if (checkIntervalRef) {
-                    clearInterval(checkIntervalRef);
-                    checkIntervalRef = null;
-                }
-                if (!isAutoStartEnabled) {
-                    autoStartTime = null;
-                }
-                updateUI();
-                return;
-            }
-
-            if (!autoStartTime) {
-                autoStartTime = calculateNextHalfHourTime();
-                updateUI();
-            }
-
-            if (!checkIntervalRef) {
-                checkIntervalRef = setInterval(() => {
-                    const now = new Date();
-                    
-                    if (now.getTime() >= autoStartTime.getTime()) {
-                        clearInterval(checkIntervalRef);
-                        checkIntervalRef = null;
-                        isAutoStartEnabled = false;
-                        
-                        if (isPaused && !intervalRef) {
-                            toggleTimer();
-                        } else {
-                            updateUI();
-                        }
-                    }
-                }, 500);
-            }
-        }
-
-        // --- EVENT HANDLERS ---
-        function handleToggleClick() {
-            toggleTimer();
-        }
-
-        function handleResetClick() {
-            resetTimer();
-        }
-
-        function handleExtraTimeClick() {
-            isExtraTimeEnabled = !isExtraTimeEnabled;
-            updateUI();
-        }
-
-        function handleAutoStartClick() {
-            isAutoStartEnabled = !isAutoStartEnabled;
-            manageAutoStart();
-        }
-
-        // --- INITIALIZATION ---
-        document.addEventListener('DOMContentLoaded', () => {
-            // Get all DOM elements
-            digitalClockEl = document.getElementById('digital-clock');
-            timelineLabelsEl = document.getElementById('timeline-labels');
-            examStatusDisplayEl = document.getElementById('exam-status-display');
-            toggleBtn = document.getElementById('toggle-btn');
-            resetBtn = document.getElementById('reset-btn');
-            extraTimeBtn = document.getElementById('extra-time-btn');
-            autoStartBtn = document.getElementById('auto-start-btn');
-            
-            // Attach event listeners
-            toggleBtn.addEventListener('click', handleToggleClick);
-            resetBtn.addEventListener('click', handleResetClick);
-            extraTimeBtn.addEventListener('click', handleExtraTimeClick);
-            autoStartBtn.addEventListener('click', handleAutoStartClick);
-
-            // Start the digital clock
-            startDigitalClock();
-
-            // Perform initial render
-            updateUI();
-        });
-
-    </script>
-</body>
-</html>
-
+export default App;
