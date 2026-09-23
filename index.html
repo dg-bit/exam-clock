@@ -1,408 +1,552 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="en" class="dark h-full">
 <head>
-<meta charset="UTF-8" />
-<meta name="viewport" content="width=device-width, initial-scale=1.0" />
-<title>Exam Timer</title>
-<style>
-    body {
-        background: black;
-        color: white;
-        font-family: "Helvetica", "Arial", sans-serif;
-        margin: 0;
-        padding: 0;
-    }
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Exam Invigilator Display</title>
+    <!-- Tailwind CSS CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            darkMode: 'class',
+            theme: {
+                extend: {
+                    colors: {
+                        brand: {
+                            50: '#ecfeff',
+                            100: '#cffafe',
+                            400: '#22d3ee',
+                            500: '#06b6d4',
+                            600: '#0891b2',
+                            900: '#164e63',
+                        }
+                    },
+                    fontFamily: {
+                        sans: ['Inter', 'system-ui', '-apple-system', 'sans-serif'],
+                        mono: ['JetBrains Mono', 'ui-monospace', 'SFMono-Regular', 'monospace'],
+                    }
+                }
+            }
+        }
+    </script>
+    <!-- Google Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;600;800&display=swap" rel="stylesheet">
+    <!-- FontAwesome CDN for Icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+    
+    <style>
+        body, input, select, textarea, button, div, span, p, label, option, h1, h2, h3, h4 {
+            font-family: Arial, Helvetica, sans-serif !important;
+        }
 
-    .container {
-        display: flex;
-        flex-direction: column;
-        min-height: 100vh;
-        padding: 2rem;
-    }
+        body {
+            background-color: #020617; /* Slate 950 */
+            color: #f8fafc;
+        }
 
-    .grid {
-        display: grid;
-        grid-template-columns: 1fr 2fr;
-        gap: 3rem;
-        flex-grow: 1;
-        align-items: start;
-    }
+        /* Custom Scrollbars */
+        ::-webkit-scrollbar {
+            width: 6px;
+            height: 6px;
+        }
+        ::-webkit-scrollbar-track {
+            background: rgba(15, 23, 42, 0.6);
+        }
+        ::-webkit-scrollbar-thumb {
+            background: #334155;
+            border-radius: 9999px;
+        }
 
-    .timeline {
-        position: relative;
-        height: 80vh;
-        width: 200px;
-        margin: auto;
-    }
-
-    .marker {
-        position: absolute;
-        right: 0;
-        transform: translateY(-50%);
-        display: flex;
-        align-items: center;
-        justify-content: flex-end;
-        width: 100%;
-    }
-
-    .marker span {
-        margin-right: 1rem;
-        white-space: nowrap;
-        font-size: 1.8rem;
-    }
-
-    .marker.check {
-        color: #22c55e; /* green */
-    }
-
-    .clock {
-        font-size: 6rem;
-        font-weight: 800;
-    }
-
-    .exam-status {
-        margin-top: 3rem;
-        flex-grow: 1;
-    }
-
-    .exam-status h1 {
-        font-size: 2.5rem;
-        color: #facc15; /* yellow */
-        margin-bottom: 0.5rem;
-    }
-
-    .exam-status h2 {
-        font-size: 2rem;
-        font-style: italic;
-        margin-bottom: 0.5rem;
-    }
-
-    .finish-time {
-        margin-top: 2rem;
-        font-size: 2rem;
-        font-style: italic;
-    }
-
-    .bottom-bar {
-        position: fixed;
-        bottom: 0;
-        left: 0;
-        right: 0;
-        background: rgba(0,0,0,0.9);
-        display: flex;
-        justify-content: center;
-        gap: 3rem;
-        padding: 1.5rem;
-    }
-
-    .bottom-bar button {
-        background: none;
-        border: none;
-        color: white;
-        font-size: 1.5rem;
-        font-weight: bold;
-        opacity: 0.3;
-        cursor: pointer;
-        transition: opacity 0.2s;
-    }
-
-    .bottom-bar button:hover {
-        opacity: 0.6;
-    }
-
-</style>
+        /* Notice Board editable styling */
+        .editable-board {
+            line-height: 1.35;
+        }
+        .editable-board:focus {
+            outline: none;
+            background-color: rgba(15, 23, 42, 0.3);
+        }
+    </style>
 </head>
-<body>
-<div class="container">
-    <div class="grid">
-        <!-- Timeline -->
-        <div class="timeline" id="timeline"></div>
+<body class="h-full flex flex-col overflow-hidden bg-slate-950 text-slate-100 antialiased selection:bg-cyan-500 selection:text-slate-950">
 
-        <!-- Main content -->
-        <div>
-            <div style="display: flex; justify-content: space-between; align-items: start; margin-bottom: 2rem;">
-                <div class="clock" id="digitalClock">00:00</div>
-                <div class="text-right" id="timeInfo" style="font-size:1.5rem"></div>
+    <!-- Top Floating Controls (Icon Only) -->
+    <div class="absolute top-4 right-6 z-30 flex items-center space-x-3">
+        <!-- Configure Exam Toggle Button (Icon Only) -->
+        <button id="openSettingsBtn" title="Configure Exam" class="p-3 rounded-lg bg-slate-900/50 hover:bg-slate-800/80 text-slate-300 hover:text-white border border-slate-800/50 backdrop-blur-md transition-all flex items-center justify-center">
+            <i class="fa-solid fa-sliders text-base"></i>
+        </button>
+    </div>
+
+    <!-- Main Workspace Container -->
+    <div class="flex-1 flex h-full overflow-hidden relative">
+
+        <!-- Left Sidebar: Adaptive Width Text-Only Elapsed Time Markers -->
+        <aside class="shrink-0 border-r border-slate-800/50 bg-slate-950 flex flex-col justify-between p-6 z-10 select-none h-full overflow-hidden w-auto min-w-max whitespace-nowrap" id="timelineContainer">
+            <!-- Markers rendered dynamically to fill entire vertical height -->
+        </aside>
+
+        <!-- Right Main View: Clock and Full-Width Auto-Resizing Instruction Area -->
+        <main class="flex-1 flex flex-col h-full overflow-hidden p-3 md:p-6 justify-between items-center relative">
+            
+            <!-- Main Content Stack (Spans full width) -->
+            <div class="w-full flex flex-col h-full space-y-4">
+
+                <!-- Prominent 12-Hour Clock (No Date, No Seconds, No Glow) -->
+                <div class="text-center flex flex-col items-center justify-center shrink-0 pt-0 -mt-2">
+                    
+                    <!-- Giant 12-Hour Clock (HH:MM AM/PM - No Seconds, No Leading Zero) -->
+                    <div class="relative inline-flex items-baseline justify-center font-extrabold text-slate-50 tracking-tight leading-none select-none">
+                        <span id="clockMain" class="text-8xl sm:text-9xl md:text-[11rem] lg:text-[13rem] tracking-tighter">
+                            9:05
+                        </span>
+                        
+                        <span id="clockAmPm" class="ml-3 sm:ml-5 text-3xl sm:text-5xl md:text-6xl font-bold text-cyan-400">
+                            AM
+                        </span>
+                    </div>
+                </div>
+
+                <!-- Clean Editable Text Area (Full Width, Auto-Fitting) -->
+                <div class="flex-1 w-full flex flex-col justify-start relative overflow-hidden min-h-0">
+                    <div 
+                        id="invigilatorNoticeBoard" 
+                        contenteditable="true" 
+                        spellcheck="false"
+                        class="editable-board h-full w-full text-slate-100 font-normal rounded-lg p-2 bg-transparent transition-none overflow-hidden whitespace-pre-wrap"
+                        placeholder="Type exam instructions here..."
+                    ></div>
+                </div>
+
             </div>
 
-            <div class="exam-status" id="examStatus"></div>
+        </main>
+    </div>
+
+    <!-- Configure Exam Modal -->
+    <div id="settingsModal" class="fixed inset-0 bg-slate-950/80 backdrop-blur-sm z-50 flex items-center justify-center p-4 hidden">
+        <div class="bg-slate-900 border border-slate-800 rounded-2xl w-full max-w-lg p-6 relative">
+            
+            <div class="flex items-center justify-between border-b border-slate-800 pb-4 mb-5">
+                <h3 class="text-base font-bold text-slate-100 flex items-center gap-2">
+                    <i class="fa-solid fa-sliders text-cyan-400"></i> Configure Exam Settings
+                </h3>
+                <button id="closeSettingsBtn" class="text-slate-400 hover:text-white p-1 rounded-lg">
+                    <i class="fa-solid fa-xmark text-lg"></i>
+                </button>
+            </div>
+
+            <form id="examSetupForm" class="space-y-4">
+                <!-- Start Time Setup -->
+                <div class="grid grid-cols-2 gap-4">
+                    <div>
+                        <label class="block text-xs font-semibold text-slate-300 uppercase tracking-wider mb-1.5">Start Time</label>
+                        <input type="time" id="inputStartTime" class="w-full bg-slate-950 border border-slate-800 rounded-lg px-3 py-2 text-sm text-slate-100 focus:outline-none focus:border-cyan-500">
+                    </div>
+                    <div>
+                        <label class="block text-xs font-semibold text-slate-300 uppercase tracking-wider mb-1.5">Duration</label>
+                        <select id="inputDuration" class="w-full bg-slate-950 border border-slate-800 rounded-lg px-3 py-2 text-sm text-slate-100 focus:outline-none focus:border-cyan-500">
+                            <option value="30">30 Minutes</option>
+                            <option value="45">45 Minutes</option>
+                            <option value="60">1 Hour</option>
+                            <option value="90">1 Hour 30 Mins</option>
+                            <option value="120" selected>2 Hours</option>
+                            <option value="150">2 Hours 30 Mins</option>
+                            <option value="180">3 Hours</option>
+                            <option value="240">4 Hours</option>
+                        </select>
+                    </div>
+                </div>
+
+                <div class="pt-2 border-t border-slate-800/80">
+                    <label class="flex items-center gap-2 cursor-pointer text-xs text-slate-300">
+                        <input type="checkbox" id="inputUseCurrentTime" class="rounded bg-slate-950 border-slate-800 text-cyan-500 focus:ring-0">
+                        <span>Set Start Time to Current Time right now</span>
+                    </label>
+                </div>
+
+                <!-- Action Buttons -->
+                <div class="pt-4 flex items-center justify-end space-x-3 border-t border-slate-800">
+                    <button type="button" id="quickStartNowBtn" class="px-4 py-2 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-semibold">
+                        Quick Start Now
+                    </button>
+                    <button type="submit" class="px-5 py-2 rounded-lg bg-cyan-600 hover:bg-cyan-500 text-slate-950 font-bold text-xs">
+                        Apply & Start
+                    </button>
+                </div>
+            </form>
+
         </div>
     </div>
-</div>
 
-<div class="bottom-bar">
-    <button id="startPauseBtn">Start</button>
-    <button id="resetBtn">Reset</button>
-    <button id="extraTimeBtn">Extra Time OFF</button>
-    <button id="autoStartBtn">Auto-Start OFF</button>
-</div>
+    <!-- JavaScript Logic -->
+    <script>
+        // Configuration State
+        const state = {
+            startTime: null,
+            durationMinutes: 120,
+            manualOverrides: {}
+        };
 
-<script>
-/* =============================
-   CONFIGURATION CONSTANTS
-============================= */
-const DEFAULT_DURATION_MINUTES = 180;
-const TOTAL_DURATION_SECONDS = DEFAULT_DURATION_MINUTES * 60;
-const WARNING_THRESHOLD_SECONDS = 15 * 60;
-const INITIAL_RESTRICTION_SECONDS = 45 * 60;
-const EXTRA_TIME_LIMIT_SECONDS = -30 * 60;
+        const PRESETS = {
+            standard: `No talking or communication of any kind.
+Raise your hand if you need extra paper or assistance.
+You may not leave the exam room during the first 45 or last 15 minutes.
+Ensure your name and candidate ID are written on all answer booklets.`
+        };
 
-/* =============================
-   STATE VARIABLES
-============================= */
-let timeRemainingSeconds = TOTAL_DURATION_SECONDS;
-let isPaused = true;
-let isFinished = false;
-let isExtraTimeEnabled = false;
-let isAutoStartEnabled = false;
-let startTime = null;
-let finishTime = null;
-let autoStartTime = null;
+        // DOM Elements
+        const clockMainEl = document.getElementById('clockMain');
+        const clockAmPmEl = document.getElementById('clockAmPm');
+        const timelineContainerEl = document.getElementById('timelineContainer');
+        const invigilatorNoticeBoardEl = document.getElementById('invigilatorNoticeBoard');
 
-let intervalId = null;
-let autoCheckId = null;
-
-/* =============================
-   UTILITY FUNCTIONS
-============================= */
-function formatTimeHMM(totalSeconds) {
-    const abs = Math.abs(totalSeconds);
-    const h = Math.floor(abs / 3600);
-    const m = Math.floor((abs % 3600) / 60);
-    return `${h}:${String(m).padStart(2, "0")}`;
-}
-
-function formatTimeMMSS(totalSeconds) {
-    const abs = Math.abs(totalSeconds);
-    const m = Math.floor(abs / 60);
-    const s = abs % 60;
-    return `${String(m).padStart(2,"0")}:${String(s).padStart(2,"0")}`;
-}
-
-function calculateNextHalfHourTime() {
-    const now = new Date();
-    let next = new Date(now);
-    const mins = now.getMinutes();
-    if (mins < 30) next.setMinutes(30,0,0);
-    else {
-        next.setHours(now.getHours()+1);
-        next.setMinutes(0,0,0);
-    }
-    return next;
-}
-
-/* =============================
-   DIGITAL CLOCK
-============================= */
-function updateDigitalClock() {
-    const now = new Date();
-    const time = now.toLocaleTimeString("en-US",{hour:"2-digit",minute:"2-digit",hour12:false});
-    document.getElementById("digitalClock").textContent = time;
-}
-setInterval(updateDigitalClock, 1000);
-
-/* =============================
-   MAIN TIMER FUNCTIONS
-============================= */
-function tick() {
-    timeRemainingSeconds -= 1;
-    const elapsed = TOTAL_DURATION_SECONDS - timeRemainingSeconds;
-
-    if (!isExtraTimeEnabled && timeRemainingSeconds <= 0) {
-        timeRemainingSeconds = 0;
-        stopTimer();
-        isFinished = true;
-    }
-
-    if (isExtraTimeEnabled && timeRemainingSeconds <= EXTRA_TIME_LIMIT_SECONDS) {
-        timeRemainingSeconds = EXTRA_TIME_LIMIT_SECONDS;
-        stopTimer();
-        isFinished = true;
-    }
-
-    if (timeRemainingSeconds === 0 && !isFinished) {
-        isFinished = true;
-    }
-
-    render();
-}
-
-function startTimer() {
-    if (isPaused) {
-        if (timeRemainingSeconds === TOTAL_DURATION_SECONDS) {
-            startTime = new Date();
-            finishTime = new Date(startTime.getTime() + TOTAL_DURATION_SECONDS * 1000);
+        // Format 12-Hour Time WITHOUT Seconds & NO Leading Zero for Hours
+        function format12HourTime(dateObj) {
+            let hours = dateObj.getHours();
+            const minutes = dateObj.getMinutes();
+            const ampm = hours >= 12 ? 'PM' : 'AM';
+            
+            hours = hours % 12;
+            hours = hours ? hours : 12; // Hour '0' -> '12'
+            
+            const minutesStr = minutes < 10 ? '0' + minutes : minutes;
+            return { timeStr: `${hours}:${minutesStr}`, ampm };
         }
-        intervalId = setInterval(tick, 1000);
-        isPaused = false;
-    }
-}
 
-function stopTimer() {
-    clearInterval(intervalId);
-    intervalId = null;
-    isPaused = true;
-}
-
-function resetTimer() {
-    stopTimer();
-    clearInterval(autoCheckId);
-    isPaused = true;
-    isFinished = false;
-    isExtraTimeEnabled = false;
-    isAutoStartEnabled = false;
-    timeRemainingSeconds = TOTAL_DURATION_SECONDS;
-    startTime = null;
-    finishTime = null;
-    autoStartTime = null;
-    render();
-}
-
-/* =============================
-   AUTO-START LOGIC
-============================= */
-function enableAutoStart() {
-    if (!isPaused || isFinished) return;
-    isAutoStartEnabled = true;
-    autoStartTime = calculateNextHalfHourTime();
-    autoCheckId = setInterval(() => {
-        const now = new Date();
-        if (now >= autoStartTime) {
-            disableAutoStart();
-            startTimer();
-            startTime = new Date();
-            finishTime = new Date(startTime.getTime() + TOTAL_DURATION_SECONDS * 1000);
-            render();
+        // Format Clock Time String for Start/End Markers (e.g. "9:05 AM")
+        function formatClockTimeString(dateObj) {
+            let hours = dateObj.getHours();
+            const minutes = dateObj.getMinutes();
+            const ampm = hours >= 12 ? 'PM' : 'AM';
+            hours = hours % 12;
+            hours = hours ? hours : 12;
+            const minutesStr = minutes < 10 ? '0' + minutes : minutes;
+            return `${hours}:${minutesStr} ${ampm}`;
         }
-    }, 1000);
-}
 
-function disableAutoStart() {
-    isAutoStartEnabled = false;
-    clearInterval(autoCheckId);
-    autoCheckId = null;
-}
+        // Format Elapsed Time Marker (e.g., "0m (9:05 AM)", "15m", "30m", "1h 00m", "2h 00m (11:05 AM)")
+        function formatElapsedLabel(mins, isEndMarker, clockTime) {
+            if (mins === 0 && clockTime) {
+                return `0m (${formatClockTimeString(clockTime)})`;
+            }
 
-/* =============================
-   UI RENDERING
-============================= */
-function renderTimeline() {
-    const container = document.getElementById("timeline");
-    container.innerHTML = "";
-    const intervalMins = 15;
-    const elapsed = TOTAL_DURATION_SECONDS - timeRemainingSeconds;
-    for (let min = 0; min <= DEFAULT_DURATION_MINUTES; min += intervalMins) {
-        const top = (min / DEFAULT_DURATION_MINUTES) * 100;
-        const markerSecs = min * 60;
-        const label = (min === 0) ? "Start" : (min === DEFAULT_DURATION_MINUTES ? "Finish" : formatTimeHMM(markerSecs));
-        const passed = markerSecs <= elapsed;
-        const marker = document.createElement("div");
-        marker.className = "marker" + (passed ? " check" : "");
-        marker.style.top = top + "%";
-        marker.innerHTML = `<span>${label}</span>${passed ? "✔" : ""}`;
-        container.appendChild(marker);
-    }
-}
+            const h = Math.floor(mins / 60);
+            const m = mins % 60;
+            let label = '';
 
-function renderStatus() {
-    const el = document.getElementById("examStatus");
-    const warn = (timeRemainingSeconds > 0 && timeRemainingSeconds <= WARNING_THRESHOLD_SECONDS);
-    const elapsed = TOTAL_DURATION_SECONDS - timeRemainingSeconds;
-    const restricted = (!isPaused && elapsed >= 0 && elapsed <= INITIAL_RESTRICTION_SECONDS);
-    let html = "";
+            if (h === 0) {
+                label = `${m}m`;
+            } else {
+                const mStr = m < 10 ? '0' + m : m;
+                label = `${h}h ${mStr}m`;
+            }
 
-    if (isExtraTimeEnabled && timeRemainingSeconds <= EXTRA_TIME_LIMIT_SECONDS) {
-        html = `<h1>The exam has ended.</h1>
-                <h2>You must stop writing.</h2>
-                <h2>Please remain silent as there may be other candidates still writing.</h2>
-                <h2>Listen carefully to all exit instructions.</h2>
-                <h2>You will be told when you can leave.</h2>`;
-    }
-    else if (isFinished && isExtraTimeEnabled && timeRemainingSeconds < 0) {
-        html = `<h1>Extra Time is in progress.</h1>
-                <h2 style="color:#f87171">(Extra Time: ${formatTimeMMSS(timeRemainingSeconds)})</h2>`;
-    }
-    else if (isFinished) {
-        html = `<h1>The exam has ended.</h1>
-                <h2>You must stop writing.</h2>
-                <h2>Please remain silent as there may be other candidates still writing.</h2>
-                <h2>Listen carefully to all exit instructions.</h2>
-                <h2>You will be told when you can leave.</h2>`;
-    }
-    else if (isPaused && isAutoStartEnabled) {
-        html = `<h1>Exam will auto-start at ${autoStartTime.toLocaleTimeString("en-US",{hour:"2-digit",minute:"2-digit",hour12:false})}</h1>`;
-    }
-    else if (isPaused && elapsed < TOTAL_DURATION_SECONDS) {
-        html = `<h1>The exam is paused. Please stop writing.</h1>
-                <h2>You will be told when you can begin again.</h2>`;
-    }
-    else if (warn) {
-        html = `<h1>You may not leave in the final 15 minutes of the exam.</h1>
-                <h2>If you are finished, stay seated and wait for the exam to end.</h2>`;
-    }
-    else if (restricted) {
-        html = `<h1>You may not leave in the first 45 minutes of the exam.</h1>
-                <h2>Please stay in your seat. If you need a supervisor, raise your hand.</h2>`;
-    }
-    else {
-        html = `<h1>Please remain seated at your desk at all times.</h1>
-                <h2>If you need to visit the bathroom, raise your hand.</h2>
-                <h2>If you are finished and would like to leave, raise your hand.</h2>`;
-    }
+            if (isEndMarker && clockTime) {
+                label += ` (${formatClockTimeString(clockTime)})`;
+            }
 
-    if (finishTime && !isFinished) {
-        html += `<div class="finish-time">The exam will finish at ${finishTime.toLocaleTimeString("en-US",{hour:"2-digit",minute:"2-digit",hour12:false})}</div>`;
-    }
+            return label;
+        }
 
-    el.innerHTML = html;
-}
+        function initDefaultExamTiming() {
+            const now = new Date();
+            const start = new Date(now);
+            start.setMinutes(Math.floor(start.getMinutes() / 15) * 15, 0, 0);
+            state.startTime = start;
+            
+            const startHours = String(start.getHours()).padStart(2, '0');
+            const startMins = String(start.getMinutes()).padStart(2, '0');
+            document.getElementById('inputStartTime').value = `${startHours}:${startMins}`;
+        }
 
-function renderInfo() {
-    const info = document.getElementById("timeInfo");
-    if (startTime && finishTime) {
-        info.innerHTML = `
-            <div>Start: ${startTime.toLocaleTimeString("en-US",{hour:"2-digit",minute:"2-digit",hour12:false})}</div>
-            <div>Finish: ${finishTime.toLocaleTimeString("en-US",{hour:"2-digit",minute:"2-digit",hour12:false})}</div>`;
-    } else {
-        info.innerHTML = "";
-    }
-}
+        function updateClock() {
+            const now = new Date();
 
-function render() {
-    renderTimeline();
-    renderStatus();
-    renderInfo();
+            // Clock Display (Hours:Minutes AM/PM - NO SECONDS)
+            const formatted = format12HourTime(now);
+            clockMainEl.textContent = formatted.timeStr;
+            clockAmPmEl.textContent = formatted.ampm;
 
-    document.getElementById("startPauseBtn").textContent = isPaused ? "Start" : "Pause";
-    document.getElementById("extraTimeBtn").textContent = `Extra Time ${isExtraTimeEnabled ? "ON" : "OFF"}`;
-    document.getElementById("autoStartBtn").textContent = `Auto-Start ${isAutoStartEnabled ? "ON" : "OFF"}`;
-}
+            // Update Left Timeline
+            renderTimeline(now);
+        }
 
-/* =============================
-   EVENT LISTENERS
-============================= */
-document.getElementById("startPauseBtn").addEventListener("click", () => {
-    if (isPaused) startTimer();
-    else stopTimer();
-    render();
-});
+        // Auto-fit instruction area text to best fit container height and width
+        function autoFitNoticeBoardText() {
+            const el = invigilatorNoticeBoardEl;
+            if (!el) return;
 
-document.getElementById("resetBtn").addEventListener("click", () => resetTimer());
+            const parent = el.parentElement;
+            if (!parent) return;
 
-document.getElementById("extraTimeBtn").addEventListener("click", () => {
-    isExtraTimeEnabled = !isExtraTimeEnabled;
-    render();
-});
+            const maxHeight = parent.clientHeight;
+            if (maxHeight <= 0) return;
 
-document.getElementById("autoStartBtn").addEventListener("click", () => {
-    if (isAutoStartEnabled) disableAutoStart();
-    else enableAutoStart();
-    render();
-});
+            // Fast binary search for optimal font size (12px to 140px)
+            let low = 12;
+            let high = 140;
+            let bestSize = low;
 
-/* Initial render */
-render();
+            while (low <= high) {
+                const mid = Math.floor((low + high) / 2);
+                el.style.fontSize = mid + 'px';
 
-</script>
+                if (el.scrollHeight <= maxHeight) {
+                    bestSize = mid;
+                    low = mid + 1; // Try larger font size
+                } else {
+                    high = mid - 1; // Try smaller font size
+                }
+            }
+
+            el.style.fontSize = bestSize + 'px';
+        }
+
+        // Generate 15-minute elapsed interval checkpoints including 0m start marker
+        function getTimelineMarkers() {
+            if (!state.startTime) return [];
+
+            const markers = [];
+            const duration = parseInt(state.durationMinutes, 10) || 120;
+            const totalSteps = Math.ceil(duration / 15);
+
+            // Start Marker (0m)
+            markers.push({
+                id: 'marker_0',
+                elapsedMins: 0,
+                time: state.startTime,
+                timeLabel: formatElapsedLabel(0, false, state.startTime)
+            });
+
+            for (let i = 1; i <= totalSteps; i++) {
+                const elapsedMins = i * 15;
+                const markerTime = new Date(state.startTime.getTime() + elapsedMins * 60 * 1000);
+                const isEndMarker = (i === totalSteps);
+                const id = `marker_${elapsedMins}`;
+
+                markers.push({
+                    id,
+                    elapsedMins,
+                    time: markerTime,
+                    timeLabel: formatElapsedLabel(elapsedMins, isEndMarker, markerTime)
+                });
+            }
+            return markers;
+        }
+
+        // Render Text-Only Elapsed Checkpoints to fill the screen
+        function renderTimeline(now = new Date()) {
+            const markers = getTimelineMarkers();
+            if (markers.length === 0) return;
+
+            timelineContainerEl.innerHTML = '';
+
+            // Calculate responsive dynamic font size max 48px to stretch all markers evenly
+            const totalMarkers = markers.length;
+            const containerHeight = timelineContainerEl.clientHeight - 48; // padding offset
+            const rawRowHeight = containerHeight / totalMarkers;
+            const calculatedFontSize = Math.min(48, Math.max(16, Math.floor(rawRowHeight * 0.5)));
+
+            markers.forEach((m) => {
+                const isPast = now.getTime() >= m.time.getTime();
+                
+                let isChecked = false;
+                if (state.manualOverrides.hasOwnProperty(m.id)) {
+                    isChecked = state.manualOverrides[m.id];
+                } else {
+                    isChecked = isPast;
+                }
+
+                const itemEl = document.createElement('div');
+                itemEl.style.fontSize = `${calculatedFontSize}px`;
+                itemEl.className = `flex-1 flex items-center cursor-pointer transition-all font-bold tracking-tight select-none leading-none whitespace-nowrap ${
+                    isChecked 
+                        ? 'text-green-400' 
+                        : 'text-slate-200 hover:text-cyan-400'
+                }`;
+
+                // Checkmark icon element
+                const iconEl = document.createElement('i');
+                iconEl.className = `fa-solid fa-check transition-all ${
+                    isChecked ? 'text-green-400 opacity-100' : 'opacity-0'
+                }`;
+                iconEl.style.marginRight = `${Math.max(6, Math.floor(calculatedFontSize * 0.35))}px`;
+                iconEl.style.fontSize = `${Math.floor(calculatedFontSize * 0.85)}px`;
+
+                const labelSpan = document.createElement('span');
+                labelSpan.textContent = m.timeLabel;
+
+                itemEl.appendChild(iconEl);
+                itemEl.appendChild(labelSpan);
+                itemEl.onclick = () => toggleMarkerCheck(m.id, !isChecked);
+
+                timelineContainerEl.appendChild(itemEl);
+            });
+        }
+
+        function toggleMarkerCheck(id, value) {
+            state.manualOverrides[id] = value;
+            saveStateToStorage();
+            renderTimeline();
+        }
+
+        function initNoticeBoard() {
+            const savedText = localStorage.getItem('invigilator_board_notes');
+            if (savedText !== null && savedText.trim() !== '') {
+                invigilatorNoticeBoardEl.innerText = savedText;
+            } else {
+                invigilatorNoticeBoardEl.innerText = PRESETS.standard;
+            }
+
+            // Auto fit font size on input/keyup
+            autoFitNoticeBoardText();
+
+            ['input', 'keyup', 'paste'].forEach(evt => {
+                invigilatorNoticeBoardEl.addEventListener(evt, () => {
+                    localStorage.setItem('invigilator_board_notes', invigilatorNoticeBoardEl.innerText);
+                    autoFitNoticeBoardText();
+                });
+            });
+        }
+
+        function saveStateToStorage() {
+            const data = {
+                startTime: state.startTime ? state.startTime.getTime() : null,
+                durationMinutes: state.durationMinutes,
+                manualOverrides: state.manualOverrides
+            };
+            localStorage.setItem('invigilator_display_config', JSON.stringify(data));
+        }
+
+        function loadStateFromStorage() {
+            try {
+                const saved = localStorage.getItem('invigilator_display_config');
+                if (saved) {
+                    const parsed = JSON.parse(saved);
+                    state.durationMinutes = parsed.durationMinutes || 120;
+                    if (parsed.startTime) {
+                        state.startTime = new Date(parsed.startTime);
+                    }
+                    state.manualOverrides = parsed.manualOverrides || {};
+                }
+            } catch (e) {
+                console.error("Storage load error", e);
+            }
+
+            if (!state.startTime) {
+                initDefaultExamTiming();
+            }
+
+            document.getElementById('inputDuration').value = state.durationMinutes;
+        }
+
+        function setupEventListeners() {
+            const inputStartTime = document.getElementById('inputStartTime');
+            const inputUseCurrentTime = document.getElementById('inputUseCurrentTime');
+            const useCurrentTimeLabel = inputUseCurrentTime.parentElement;
+
+            // Handle start time changes & disabling 'use current time' checkbox
+            inputStartTime.addEventListener('input', () => {
+                if (inputStartTime.value) {
+                    inputUseCurrentTime.checked = false;
+                    inputUseCurrentTime.disabled = true;
+                    useCurrentTimeLabel.classList.add('opacity-40', 'cursor-not-allowed');
+                } else {
+                    inputUseCurrentTime.disabled = false;
+                    useCurrentTimeLabel.classList.remove('opacity-40', 'cursor-not-allowed');
+                }
+            });
+
+            inputUseCurrentTime.addEventListener('change', () => {
+                if (inputUseCurrentTime.checked) {
+                    const now = new Date();
+                    const hours = String(now.getHours()).padStart(2, '0');
+                    const mins = String(now.getMinutes()).padStart(2, '0');
+                    inputStartTime.value = `${hours}:${mins}`;
+                }
+            });
+
+            // Modal Controls
+            const settingsModal = document.getElementById('settingsModal');
+            document.getElementById('openSettingsBtn').addEventListener('click', () => {
+                settingsModal.classList.remove('hidden');
+                
+                // Sync checkbox disabled state on modal open
+                if (inputStartTime.value) {
+                    inputUseCurrentTime.checked = false;
+                    inputUseCurrentTime.disabled = true;
+                    useCurrentTimeLabel.classList.add('opacity-40', 'cursor-not-allowed');
+                } else {
+                    inputUseCurrentTime.disabled = false;
+                    useCurrentTimeLabel.classList.remove('opacity-40', 'cursor-not-allowed');
+                }
+            });
+
+            document.getElementById('closeSettingsBtn').addEventListener('click', () => {
+                settingsModal.classList.add('hidden');
+            });
+
+            // Quick Start Now
+            document.getElementById('quickStartNowBtn').addEventListener('click', () => {
+                const now = new Date();
+                state.startTime = now;
+                const hours = String(now.getHours()).padStart(2, '0');
+                const mins = String(now.getMinutes()).padStart(2, '0');
+                inputStartTime.value = `${hours}:${mins}`;
+                inputUseCurrentTime.checked = false;
+                
+                state.manualOverrides = {};
+                saveStateToStorage();
+                renderTimeline();
+                settingsModal.classList.add('hidden');
+            });
+
+            // Exam Setup Form Submit
+            document.getElementById('examSetupForm').addEventListener('submit', (e) => {
+                e.preventDefault();
+                
+                const startTimeVal = document.getElementById('inputStartTime').value;
+                const durationVal = parseInt(document.getElementById('inputDuration').value, 10);
+                const useCurrentTime = inputUseCurrentTime.checked;
+
+                state.durationMinutes = durationVal;
+
+                if (useCurrentTime) {
+                    state.startTime = new Date();
+                } else if (startTimeVal) {
+                    const [h, m] = startTimeVal.split(':').map(Number);
+                    const st = new Date();
+                    st.setHours(h, m, 0, 0);
+                    state.startTime = st;
+                }
+
+                state.manualOverrides = {};
+                saveStateToStorage();
+                renderTimeline();
+                settingsModal.classList.add('hidden');
+            });
+
+            // Re-calculate layout font scaling on window resize
+            window.addEventListener('resize', () => {
+                renderTimeline();
+                autoFitNoticeBoardText();
+            });
+        }
+
+        // Initialize App on Window Load
+        window.onload = function () {
+            loadStateFromStorage();
+            initNoticeBoard();
+            setupEventListeners();
+            
+            updateClock();
+            setInterval(updateClock, 1000);
+            
+            // Initial auto-fit pass after load layout settles
+            setTimeout(autoFitNoticeBoardText, 50);
+        };
+    </script>
 </body>
 </html>
